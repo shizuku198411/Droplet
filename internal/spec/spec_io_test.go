@@ -613,13 +613,13 @@ func TestCreateConfigFile_1(t *testing.T) {
 	input := ConfigOptions{
 		Rootfs: "rootfs",
 	}
+	path := filepath.Join(dir, "config.json")
 
-	if err := CreateConfigFile(dir, input); err != nil {
+	if err := CreateConfigFile(path, input); err != nil {
 		t.Fatalf("CreateConfigFile failed: %v", err)
 	}
 
 	// check if the file:config.json exists
-	path := filepath.Join(dir, "config.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read output file: %v", err)
@@ -857,7 +857,7 @@ func TestLoadConfigFile_1(t *testing.T) {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
-	result, err := LoadConfigFile(dir)
+	result, err := LoadConfigFile(path)
 	if err != nil {
 		t.Fatalf("LoadConfigFile failed: %v", err)
 	}

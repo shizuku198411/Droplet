@@ -275,7 +275,7 @@ func CreateConfigFile(path string, opts ConfigOptions) error {
 	spec := buildSpec(opts)
 
 	// write spec to file
-	configPath := filepath.Join(path, "config.json")
+	configPath := filepath.Join(path)
 	if err := utils.WriteJsonToFile(configPath, spec); err != nil {
 		return err
 	}
@@ -285,8 +285,7 @@ func CreateConfigFile(path string, opts ConfigOptions) error {
 func LoadConfigFile(path string) (Spec, error) {
 	var spec Spec
 
-	configPath := filepath.Join(path, "config.json")
-	if err := utils.ReadJsonFile(configPath, &spec); err != nil {
+	if err := utils.ReadJsonFile(path, &spec); err != nil {
 		return Spec{}, err
 	}
 

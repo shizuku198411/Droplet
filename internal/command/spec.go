@@ -95,7 +95,7 @@ func runCreateConfigFile(ctx *cli.Context) error {
 	}
 
 	// build configuration file(config.json)
-	if err := spec.CreateConfigFile(ctx.String("output"), configOptions); err != nil {
+	if err := spec.CreateConfigFile(ctx.String("output")+"/config.json", configOptions); err != nil {
 		return err
 	}
 

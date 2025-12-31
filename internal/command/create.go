@@ -1,7 +1,8 @@
 package command
 
 import (
-	"fmt"
+	"droplet/internal/container"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -9,24 +10,20 @@ func commandCreate() *cli.Command {
 	return &cli.Command{
 		Name:      "create",
 		Usage:     "create a container",
-		ArgsUsage: "<container-id> [path-to-bundle]",
-		Action: func(ctx *cli.Context) error {
-			// validate args
-			if ctx.NArg() < 1 || ctx.NArg() > 2 {
-				return fmt.Errorf("usage: droplet create <container-id> [path-to-bundle]")
-			}
-
-			// get args
-			container_id := ctx.Args().Get(0)
-			bundle_path := ctx.Args().Get(1)
-			if bundle_path == "" {
-				bundle_path = "."
-			}
-
-			fmt.Println(container_id)
-			fmt.Println(bundle_path)
-
-			return nil
-		},
+		ArgsUsage: "<container-id>",
+		Action:    runCreate,
 	}
+}
+
+func runCreate(ctx *cli.Context) error {
+	// retrieve container ID
+	containerId := ctx.Args().Get(0)
+
+	err := container.CreateContainer(container.CreateOption{ContainerId: containerId})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
