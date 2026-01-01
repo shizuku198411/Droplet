@@ -1,4 +1,7 @@
 # Droplet
+<p>
+  <img src="assets/droplet_icon.png" alt="Project Icon" width="160">
+</p>
 
 Droplet is the **low-level container runtime** of the `Raind` container runtime stack.
 
