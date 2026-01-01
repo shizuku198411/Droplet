@@ -1,11 +1,19 @@
 package container
 
 import (
+	"os"
 	"path/filepath"
 )
 
 // raind container root directory
-const rootDir = "/etc/raind/container"
+var rootDir = defaultRootDir()
+
+func defaultRootDir() string {
+	if v := os.Getenv("RAIND_ROOT_DIR"); v != "" {
+		return v
+	}
+	return "/etc/raind/container"
+}
 
 // directory for each container
 //
