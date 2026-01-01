@@ -23,6 +23,7 @@ OUTDIR=/etc/raind/container/$CID
   --rootfs "$ROOTFS" \
   --cwd "$CWD" \
   --command "$CMD" \
+  --ns "mount" --ns "network" \
   --hostname "$HOSTNAME" \
   --if_name "$IF_NAME" \
   --if_addr "$IF_ADDR" \

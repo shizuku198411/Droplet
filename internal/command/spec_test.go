@@ -8,6 +8,7 @@ import (
 
 	"droplet/internal/spec"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v2"
 )
 
@@ -161,10 +162,12 @@ func TestCreateConfigOptions_1(t *testing.T) {
 	set.String("merge_dir", "", "")
 
 	mounts := cli.NewStringSlice()
+	namespace := cli.NewStringSlice()
 	envs := cli.NewStringSlice()
 	dns := cli.NewStringSlice()
 
 	set.Var(mounts, "mount", "")
+	set.Var(namespace, "ns", "")
 	set.Var(envs, "env", "")
 	set.Var(dns, "dns", "")
 
@@ -178,6 +181,9 @@ func TestCreateConfigOptions_1(t *testing.T) {
 	_ = set.Set("env", "PATH=/usr/bin:/bin")
 	_ = set.Set("env", "KEY=VALUE")
 	_ = set.Set("command", "/bin/bash")
+
+	_ = set.Set("ns", "mount")
+	_ = set.Set("ns", "network")
 
 	_ = set.Set("hostname", "mycontainer")
 
@@ -230,6 +236,10 @@ func TestCreateConfigOptions_1(t *testing.T) {
 				"/bin/bash",
 			},
 		},
+		Namespace: []string{
+			"mount",
+			"network",
+		},
 		Hostname: "mycontainer",
 		Net: spec.NetOption{
 			InterfaceName: "eth0",
@@ -248,9 +258,7 @@ func TestCreateConfigOptions_1(t *testing.T) {
 		},
 	}
 
-	if !reflect.DeepEqual(result, expect) {
-		t.Errorf("unexpected result.\nwant=%#v\ngot =%#v", expect, result)
-	}
+	assert.Equal(t, expect, result)
 }
 
 // =======================================

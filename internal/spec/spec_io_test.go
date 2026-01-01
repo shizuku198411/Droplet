@@ -224,7 +224,14 @@ func TestBuildProcessSpec_1(t *testing.T) {
 
 // == test for func:buildLinuxSpec ==
 func TestBuildLinuxSpec_1(t *testing.T) {
-	result := buildLinuxSpec()
+	input := ConfigOptions{
+		Namespace: []string{
+			"mount",
+			"network",
+		},
+	}
+
+	result := buildLinuxSpec(input)
 
 	expect := LinuxSpecObject{
 		Resources: ResourceObject{
@@ -242,18 +249,6 @@ func TestBuildLinuxSpec_1(t *testing.T) {
 			},
 			{
 				Type: "network",
-			},
-			{
-				Type: "uts",
-			},
-			{
-				Type: "pid",
-			},
-			{
-				Type: "ipc",
-			},
-			{
-				Type: "cgroup",
 			},
 		},
 	}
@@ -384,6 +379,10 @@ func TestBuildSpec_1(t *testing.T) {
 				"echo",
 				"hello world",
 			},
+		},
+		Namespace: []string{
+			"mount",
+			"network",
 		},
 		Hostname: "mycontainer",
 		Net: NetOption{
@@ -576,18 +575,6 @@ func TestBuildSpec_1(t *testing.T) {
 				},
 				{
 					Type: "network",
-				},
-				{
-					Type: "uts",
-				},
-				{
-					Type: "pid",
-				},
-				{
-					Type: "ipc",
-				},
-				{
-					Type: "cgroup",
 				},
 			},
 		},

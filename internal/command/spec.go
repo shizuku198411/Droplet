@@ -38,6 +38,10 @@ func commandSpec() *cli.Command {
 				Usage: "container entrypoint",
 				Value: "sh",
 			},
+			&cli.StringSliceFlag{
+				Name:  "ns",
+				Usage: "namespace target [mount|network|uts|pid|ipc|user|cgroup]",
+			},
 			&cli.StringFlag{
 				Name:  "hostname",
 				Usage: "container hostname",
@@ -124,6 +128,9 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 		return spec.ConfigOptions{}, err
 	}
 
+	// namespace
+	namespace := ctx.StringSlice("ns")
+
 	// hostname
 	hostname := ctx.String("hostname")
 
@@ -155,7 +162,8 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 			Env:  env,
 			Args: args,
 		},
-		Hostname: hostname,
+		Namespace: namespace,
+		Hostname:  hostname,
 		Net: spec.NetOption{
 			InterfaceName: ifName,
 			Address:       ifAddr,

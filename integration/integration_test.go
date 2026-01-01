@@ -64,6 +64,7 @@ func TestIntegration_CreateAndStart(t *testing.T) {
 		"--rootfs", "/",
 		"--cwd", "/",
 		"--command", `/bin/sh -c "echo Hello World from Container!"`,
+		"--ns", "uts",
 		"--hostname", containerId,
 		"--if_name", "eth0",
 		"--if_addr", "10.166.0.1/24", "--if_gateway", "10.166.0.254", "--dns", "8.8.8.8",
