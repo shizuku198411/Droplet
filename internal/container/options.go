@@ -15,3 +15,8 @@ type InitOption struct {
 type StartOption struct {
 	ContainerId string
 }
+
+// run options
+type RunOption struct {
+	ContainerId string
+}

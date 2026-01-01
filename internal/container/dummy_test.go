@@ -2,6 +2,7 @@ package container
 
 import (
 	"io"
+	"syscall"
 
 	"droplet/internal/spec"
 )
@@ -71,13 +72,20 @@ type dummyCmd struct {
 	args   []string
 	stdout io.Writer
 	stderr io.Writer
+	stdin  io.Reader
 	pid    int
 	err    error
+	attr   *syscall.SysProcAttr
 
 	startFlag bool
 }
 
 func (d *dummyCmd) Start() error {
+	d.startFlag = true
+	return d.err
+}
+
+func (d *dummyCmd) Wait() error {
 	d.startFlag = true
 	return d.err
 }
@@ -92,6 +100,14 @@ func (d *dummyCmd) SetStdout(w io.Writer) {
 
 func (d *dummyCmd) SetStderr(w io.Writer) {
 	d.stderr = w
+}
+
+func (d *dummyCmd) SetStdin(r io.Reader) {
+	d.stdin = r
+}
+
+func (d *dummyCmd) SetSysProcAttr(attr *syscall.SysProcAttr) {
+	d.attr = attr
 }
 
 type dummyCommandFactory struct {
