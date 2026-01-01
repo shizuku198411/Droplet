@@ -1,0 +1,98 @@
+package container
+
+import (
+	"fmt"
+	"os"
+)
+
+// NewContainerRun constructs a ContainerRun using the default
+// implementations of its dependencies.
+//
+// This is the main entry point for running a container in a
+// foreground/attached mode, similar to `runc run`.
+// Unlike `create` + `start`, this function starts the init process,
+// sends the FIFO start signal, and then waits for the container
+// process to exit.
+func NewContainerRun() *ContainerRun {
+	return &ContainerRun{
+		specLoader:     newFileSpecLoader(),
+		fifoCreator:    newContainerFifoHandler(),
+		commandFactory: newCommandFactory(),
+		containerStart: NewContainerStart(),
+	}
+}
+
+// ContainerRun orchestrates the "run" lifecycle of a container.
+//
+// The run flow performs the following steps:
+//
+//  1. Load the OCI spec (config.json)
+//  2. Create the FIFO used for init synchronization
+//  3. Spawn the init subprocess of this runtime (via the `init` subcommand)
+//  4. Signal the init process to start by writing to the FIFO
+//  5. Attach to and wait for the container process to exit
+//
+// This differs from the `create` + `start` workflow in that the caller
+// remains attached to the container process and blocks until it terminates.
+type ContainerRun struct {
+	specLoader     specLoader
+	fifoCreator    fifoCreator
+	commandFactory commandFactory
+	containerStart *ContainerStart
+}
+
+// Run executes the container run pipeline for the provided container ID.
+//
+// The entrypoint specified in the OCI spec's process section is executed
+// inside the init process after synchronization via FIFO.
+//
+// On success, this method blocks until the container process exits and
+// returns the exit status of the process. Any failure during startup or
+// synchronization results in an error being returned.
+func (c *ContainerRun) Run(opt RunOption) error {
+	// 1. load config.json
+	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	if err != nil {
+		return err
+	}
+
+	// 2. create fifo
+	fifo := fifoPath(opt.ContainerId)
+	if err := c.fifoCreator.createFifo(fifo); err != nil {
+		return err
+	}
+
+	// 3. prepare init subcommand
+	entrypoint := spec.Process.Args
+	initArgs := append([]string{"init", fifo}, entrypoint...)
+	cmd := c.commandFactory.Command(os.Args[0], initArgs...)
+	// set stdout/stderr/stdin
+	cmd.SetStdout(os.Stdout)
+	cmd.SetStderr(os.Stderr)
+	cmd.SetStdin(os.Stdin)
+
+	// apply clone flags
+	nsConfig := buildNamespaceConfig(spec)
+	cmd.SetSysProcAttr(buildNamespaceAttr(nsConfig))
+
+	// 4. start init process
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	fmt.Printf("container processs pid: %d\n", cmd.Pid())
+
+	// 5. start container
+	if err := c.containerStart.Execute(
+		StartOption{ContainerId: opt.ContainerId},
+	); err != nil {
+		return err
+	}
+
+	// 6. wait init process
+	if err := cmd.Wait(); err != nil {
+		return err
+	}
+
+	return nil
+}

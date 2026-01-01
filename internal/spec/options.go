@@ -28,10 +28,11 @@ type ImageOption struct {
 }
 
 type ConfigOptions struct {
-	Rootfs   string
-	Mounts   []MountOption
-	Process  ProcessOption
-	Hostname string
-	Net      NetOption
-	Image    ImageOption
+	Rootfs    string
+	Mounts    []MountOption
+	Process   ProcessOption
+	Namespace []string
+	Hostname  string
+	Net       NetOption
+	Image     ImageOption
 }

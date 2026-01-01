@@ -167,8 +167,8 @@ func buildProcessSpec(opts ConfigOptions) ProcessObject {
 	}
 }
 
-func buildLinuxSpec() LinuxSpecObject {
-	return LinuxSpecObject{
+func buildLinuxSpec(opts ConfigOptions) LinuxSpecObject {
+	var linuxSpec = LinuxSpecObject{
 		Resources: ResourceObject{
 			Memory: MemoryObject{ // memory limit: 512MiB
 				Limit: 536870912,
@@ -178,27 +178,16 @@ func buildLinuxSpec() LinuxSpecObject {
 				Quota:  80000,
 			},
 		},
-		Namespaces: []NamespaceObject{
-			{
-				Type: "mount",
-			},
-			{
-				Type: "network",
-			},
-			{
-				Type: "uts",
-			},
-			{
-				Type: "pid",
-			},
-			{
-				Type: "ipc",
-			},
-			{
-				Type: "cgroup",
-			},
-		},
+		Namespaces: []NamespaceObject{},
 	}
+
+	for _, ns := range opts.Namespace {
+		linuxSpec.Namespaces = append(linuxSpec.Namespaces, NamespaceObject{
+			Type: ns,
+		})
+	}
+
+	return linuxSpec
 }
 
 func buildNetSpec(opts ConfigOptions) NetConfigObject {
@@ -254,7 +243,7 @@ func buildSpec(opts ConfigOptions) Spec {
 	hostname := opts.Hostname
 
 	// linux spec
-	linuxSpec := buildLinuxSpec()
+	linuxSpec := buildLinuxSpec(opts)
 
 	// annotation
 	annotation := buildAnnotationSpec(opts)

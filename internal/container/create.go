@@ -2,9 +2,7 @@ package container
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 
 	"droplet/internal/spec"
 )
@@ -97,9 +95,10 @@ func (c *containerInitExecutor) executeInit(spec spec.Spec, fifo string) (int, e
 	// prepare init subcommand
 	initArgs := append([]string{"init", fifo}, entrypoint...)
 	cmd := c.commandFactory.Command(os.Args[0], initArgs...)
-	// set stdout/stderr
-	cmd.SetStdout(os.Stdout)
-	cmd.SetStderr(os.Stderr)
+
+	// apply clone flags
+	nsConfig := buildNamespaceConfig(spec)
+	cmd.SetSysProcAttr(buildNamespaceAttr(nsConfig))
 
 	// execute init subcommand
 	if err := cmd.Start(); err != nil {
@@ -107,70 +106,4 @@ func (c *containerInitExecutor) executeInit(spec spec.Spec, fifo string) (int, e
 	}
 
 	return cmd.Pid(), nil
-}
-
-// commandFactory creates commandExecutor instances.
-//
-// The factory abstracts process creation so that callers do not depend
-// directly on exec.Command. This makes the behavior testable by replacing
-// the factory with a mock implementation.
-type commandFactory interface {
-	Command(name string, args ...string) commandExecutor
-}
-
-// execCommandFactory is the default implementation of commandFactory.
-//
-// It creates commandExecutor values backed by *exec.Cmd and launches
-// real OS processes.
-type execCommandFactory struct{}
-
-// Command returns a commandExecutor that executes the given command
-// using exec.Cmd.
-func (e *execCommandFactory) Command(name string, args ...string) commandExecutor {
-	return &execCmd{cmd: exec.Command(name, args...)}
-}
-
-// commandExecutor represents a process that can be started.
-//
-// It provides a minimal surface over exec.Cmd so that command execution
-// can be substituted or mocked in tests.
-type commandExecutor interface {
-	Start() error
-	Pid() int
-	SetStdout(w io.Writer)
-	SetStderr(w io.Writer)
-}
-
-// execCmd is the concrete commandExecutor backed by exec.Cmd.
-//
-// It delegates all operations to the underlying exec.Cmd instance.
-type execCmd struct {
-	cmd *exec.Cmd
-}
-
-// Start starts the underlying process.
-//
-// It mirrors (*exec.Cmd).Start.
-func (e *execCmd) Start() error {
-	return e.cmd.Start()
-}
-
-// Pid returns the PID of the started process.
-//
-// If the process has not been started, -1 is returned.
-func (e *execCmd) Pid() int {
-	if e.cmd.Process == nil {
-		return -1
-	}
-	return e.cmd.Process.Pid
-}
-
-// SetStdout sets the stdout writer for the underlying command.
-func (e *execCmd) SetStdout(w io.Writer) {
-	e.cmd.Stdout = w
-}
-
-// SetStderr sets the stderr writer for the underlying command.
-func (e *execCmd) SetStderr(w io.Writer) {
-	e.cmd.Stderr = w
 }

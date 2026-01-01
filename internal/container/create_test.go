@@ -2,7 +2,6 @@ package container
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"droplet/internal/testutils"
@@ -95,22 +94,12 @@ func TestExecuteInit_Success(t *testing.T) {
 	resultArgs := dummyCmdFactory.commandArgs
 	assert.Equal(t, expectArgs, resultArgs)
 
-	// 2. Stdout is set
-	expectStdout := os.Stdout
-	resultStdout := dummyCmd.stdout
-	assert.Equal(t, expectStdout, resultStdout)
-
-	// 3. Stderr is set
-	expectStderr := os.Stderr
-	resultStderr := dummyCmd.stderr
-	assert.Equal(t, expectStderr, resultStderr)
-
-	// 4. Start() is being called
+	// 2. Start() is being called
 	expectStartFlag := true
 	resultStartFlag := dummyCmd.startFlag
 	assert.Equal(t, expectStartFlag, resultStartFlag)
 
-	// 5. PID is returned
+	// 3. PID is returned
 	expectPid := 11111
 	resultPid := pid
 	assert.Equal(t, expectPid, resultPid)
