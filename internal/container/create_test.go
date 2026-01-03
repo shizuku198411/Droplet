@@ -1,136 +1,200 @@
 package container
 
 import (
-	"fmt"
+	"errors"
 	"testing"
-
-	"droplet/internal/testutils"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCreate_Success(t *testing.T) {
-	dummyContainerCreator := &ContainerCreator{
-		specLoader:      &dummyFileSpecLoader{spec: dummySpec()},
-		fifoCreator:     &dummyFifoHandler{},
-		processExecutor: &dummyContainerInitExecutor{Pid: 11111},
+func buildCreateOption(t *testing.T) CreateOption {
+	t.Helper()
+
+	return CreateOption{
+		ContainerId: "123456",
 	}
-
-	result := testutils.CaptureStdout(t, func() {
-		err := dummyContainerCreator.Create(CreateOption{ContainerId: "123456"})
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	expect := "init process has been created. pid: 11111\n"
-
-	assert.Equal(t, expect, result)
 }
 
-func TestCreate_LoadConfigError(t *testing.T) {
-	dummyContainerInitExecutor := &ContainerCreator{
-		specLoader: &dummyFileSpecLoader{err: fmt.Errorf("failed to load config.json")},
-	}
+func TestNewContainerCreator_Success(t *testing.T) {
+	// == arrange ==
 
-	result := dummyContainerInitExecutor.Create(CreateOption{ContainerId: "123456"})
+	// == act ==
+	containerCreator := NewContainerCreator()
 
-	expect := fmt.Errorf("failed to load config.json")
-
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.NotNil(t, containerCreator)
+	assert.NotNil(t, containerCreator.specLoader)
+	assert.NotNil(t, containerCreator.fifoCreator)
+	assert.NotNil(t, containerCreator.processExecutor)
 }
 
-func TestCreate_CreateFifoError(t *testing.T) {
-	dummyContainerInitExecutor := &ContainerCreator{
-		specLoader:  &dummyFileSpecLoader{spec: dummySpec()},
-		fifoCreator: &dummyFifoHandler{createErr: fmt.Errorf("failed to create FIFO")},
-	}
+func TestNewContainerInitExecutor_Success(t *testing.T) {
+	// == arrange ==
 
-	result := dummyContainerInitExecutor.Create(CreateOption{ContainerId: "123456"})
+	// == act ==
+	containerInitExecutor := newContainerInitExecutor()
 
-	expect := fmt.Errorf("failed to create FIFO")
-
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.NotNil(t, containerInitExecutor)
+	assert.NotNil(t, containerInitExecutor.commandFactory)
 }
 
-func TestCreate_ExecuteInitError(t *testing.T) {
-	dummyContainerInitExecutor := &ContainerCreator{
-		specLoader:      &dummyFileSpecLoader{spec: dummySpec()},
-		fifoCreator:     &dummyFifoHandler{},
-		processExecutor: &dummyContainerInitExecutor{Err: fmt.Errorf("failed to execute process")},
+func TestContainerCreator_Create_Success(t *testing.T) {
+	// == arrange ==
+	opts := buildCreateOption(t)
+	mockSpecLoader := &mockFileSpecLoader{}
+	mockFifoCreator := &mockCotainerFifoHandler{}
+	mockProcessExecutor := &mockContainerInitExecutor{}
+	mockContainerCreator := ContainerCreator{
+		specLoader:      mockSpecLoader,
+		fifoCreator:     mockFifoCreator,
+		processExecutor: mockProcessExecutor,
 	}
 
-	result := dummyContainerInitExecutor.Create(CreateOption{ContainerId: "123456"})
+	// == act ==
+	err := mockContainerCreator.Create(opts)
 
-	expect := fmt.Errorf("failed to execute process")
+	// == assert ==
+	// loadFile() is called
+	assert.True(t, mockSpecLoader.loadFileCallFlag)
 
-	assert.Equal(t, expect, result)
+	// createFifo() is called
+	assert.True(t, mockFifoCreator.createFifoCallFlag)
+
+	// executeInit() is called
+	assert.True(t, mockProcessExecutor.executeInitCallFlag)
+
+	// err is nil
+	assert.Nil(t, err)
 }
 
-func TestExecuteInit_Success(t *testing.T) {
-	spec := dummySpec()
-	fifo := "/tmp/exec.fifo"
-
-	dummyCmd := &dummyCmd{
-		pid: 11111,
-		err: nil,
+func TestContainerCreator_Create_LoadFileError(t *testing.T) {
+	// == arrange ==
+	opts := buildCreateOption(t)
+	mockSpecLoader := &mockFileSpecLoader{
+		loadFileErr: errors.New("loadFile() failed"),
 	}
-	dummyCmdFactory := &dummyCommandFactory{
-		cmd: dummyCmd,
-	}
-
-	dummyInitExecutor := &containerInitExecutor{
-		commandFactory: dummyCmdFactory,
+	mockFifoCreator := &mockCotainerFifoHandler{}
+	mockProcessExecutor := &mockContainerInitExecutor{}
+	mockContainerCreator := ContainerCreator{
+		specLoader:      mockSpecLoader,
+		fifoCreator:     mockFifoCreator,
+		processExecutor: mockProcessExecutor,
 	}
 
-	pid, err := dummyInitExecutor.executeInit("123456", spec, fifo)
-	if err != nil {
-		t.Fatalf("executeInit returned error: %v", err)
-	}
+	// == act ==
+	err := mockContainerCreator.Create(opts)
 
-	// assert
-	// 1. the args is set to "init <container-id> <fifo-path> <entrypoint>"
-	expectArgs := []string{"init", "123456", "/tmp/exec.fifo", "/bin/sh"}
-	resultArgs := dummyCmdFactory.commandArgs
-	assert.Equal(t, expectArgs, resultArgs)
-
-	// 2. Start() is being called
-	expectStartFlag := true
-	resultStartFlag := dummyCmd.startFlag
-	assert.Equal(t, expectStartFlag, resultStartFlag)
-
-	// 3. PID is returned
-	expectPid := 11111
-	resultPid := pid
-	assert.Equal(t, expectPid, resultPid)
+	// == assert ==
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("loadFile() failed"), err)
 }
 
-func TestExecuteInit_StartError(t *testing.T) {
-	spec := dummySpec()
-	fifo := "/tmp/exec.fifo"
-
-	dummyCmd := &dummyCmd{
-		pid: 11111,
-		err: fmt.Errorf("start error"),
+func TestContainerCreator_Create_CreateFifoError(t *testing.T) {
+	// == arrange ==
+	opts := buildCreateOption(t)
+	mockSpecLoader := &mockFileSpecLoader{}
+	mockFifoCreator := &mockCotainerFifoHandler{
+		createFifoErr: errors.New("createFifo() failed"),
 	}
-	dummyCmdFactory := &dummyCommandFactory{
-		cmd: dummyCmd,
-	}
-
-	dummyInitExecutor := &containerInitExecutor{
-		commandFactory: dummyCmdFactory,
+	mockProcessExecutor := &mockContainerInitExecutor{}
+	mockContainerCreator := ContainerCreator{
+		specLoader:      mockSpecLoader,
+		fifoCreator:     mockFifoCreator,
+		processExecutor: mockProcessExecutor,
 	}
 
-	pid, err := dummyInitExecutor.executeInit("123456", spec, fifo)
+	// == act ==
+	err := mockContainerCreator.Create(opts)
 
-	// assert
-	// 1. pid is -1
-	expectPid := -1
-	resultPid := pid
-	assert.Equal(t, expectPid, resultPid)
+	// == assert ==
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("createFifo() failed"), err)
+}
 
-	// 2. error message is returned
-	expectErr := fmt.Errorf("start error")
-	resultErr := err
-	assert.Equal(t, expectErr, resultErr)
+func TestContainerCreator_Create_ExecuteInitError(t *testing.T) {
+	// == arrange ==
+	opts := buildCreateOption(t)
+	mockSpecLoader := &mockFileSpecLoader{}
+	mockFifoCreator := &mockCotainerFifoHandler{}
+	mockProcessExecutor := &mockContainerInitExecutor{
+		executeInitErr: errors.New("executeInit() failed"),
+	}
+	mockContainerCreator := ContainerCreator{
+		specLoader:      mockSpecLoader,
+		fifoCreator:     mockFifoCreator,
+		processExecutor: mockProcessExecutor,
+	}
+
+	// == act ==
+	err := mockContainerCreator.Create(opts)
+
+	// == assert ==
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("executeInit() failed"), err)
+}
+
+func TestContainerInitExecutor_ExecuteInit_Success(t *testing.T) {
+	// == arrange ==
+	mockSpec := buildMockSpec(t)
+	mockExecCmd := &mockExecCmd{
+		pidPid: 12345,
+	}
+	mockExecCommandFactory := &mockExecCommandFactory{
+		commandExecutor: mockExecCmd,
+	}
+	mockContainerInitExecutor := &containerInitExecutor{
+		commandFactory: mockExecCommandFactory,
+	}
+	containerId := "12345"
+	fifo := "exec.fifo"
+
+	// == act ==
+	pid, err := mockContainerInitExecutor.executeInit(containerId, mockSpec, fifo)
+
+	// == assert ==
+	// Command() is called
+	assert.True(t, mockExecCommandFactory.commandCallFlag)
+
+	// command args is "init <container-id> <fifo> <entrypoint>"
+	expectArgs := []string{"init", "12345", "exec.fifo", "/bin/sh"}
+	assert.Equal(t, mockExecCommandFactory.commandArgs, expectArgs)
+
+	// SetSysProcAttr() is called
+	assert.True(t, mockExecCmd.setSysProcAttrCallFlag)
+
+	// Start() is called
+	assert.True(t, mockExecCmd.startCallFlag)
+
+	// pid: 12345 is returned
+	assert.Equal(t, 12345, pid)
+
+	// error is nil
+	assert.Nil(t, err)
+}
+
+func TestContainerInitExecutor_ExecuteInit_StartError(t *testing.T) {
+	// == arrange ==
+	mockSpec := buildMockSpec(t)
+	mockExecCmd := &mockExecCmd{
+		startErr: errors.New("Start() failed"),
+	}
+	mockExecCommandFactory := &mockExecCommandFactory{
+		commandExecutor: mockExecCmd,
+	}
+	mockContainerInitExecutor := &containerInitExecutor{
+		commandFactory: mockExecCommandFactory,
+	}
+	containerId := "12345"
+	fifo := "exec.fifo"
+
+	// == act ==
+	pid, err := mockContainerInitExecutor.executeInit(containerId, mockSpec, fifo)
+
+	// == assert ==
+	// pid: -1 is returned
+	assert.Equal(t, -1, pid)
+	// error is returned
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("Start() failed"), err)
 }

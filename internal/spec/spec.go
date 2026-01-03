@@ -88,9 +88,9 @@ type NetConfigObject struct {
 
 // Annotation: io.raind.image.config
 type ImageConfigObject struct {
-	RootfsType string `json:"rootfsType"`
-	ImageLayer string `json:"imageLayer"`
-	UpperDir   string `json:"upperDir"`
-	WorkDir    string `json:"workDir"`
-	MergeDir   string `json:"mergeDir"`
+	RootfsType string   `json:"rootfsType"`
+	ImageLayer []string `json:"imageLayer"`
+	UpperDir   string   `json:"upperDir"`
+	WorkDir    string   `json:"workDir"`
+	MergeDir   string   `json:"mergeDir"`
 }

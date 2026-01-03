@@ -21,7 +21,7 @@ type NetOption struct {
 }
 
 type ImageOption struct {
-	ImageLayer string
+	ImageLayer []string
 	UpperDir   string
 	WorkDir    string
 	MergeDir   string

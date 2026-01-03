@@ -18,6 +18,14 @@ func NewContainerCreator() *ContainerCreator {
 	}
 }
 
+// newContainerInitExecutor constructs a containerInitExecutor with the default implementations.
+// This acts as the main entry point for spawning the container init process workflow.
+func newContainerInitExecutor() *containerInitExecutor {
+	return &containerInitExecutor{
+		commandFactory: &execCommandFactory{},
+	}
+}
+
 // ContainerCreator orchestrates the container creation flow.
 //
 // The flow currently consists of:
@@ -57,14 +65,6 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 	fmt.Printf("init process has been created. pid: %d\n", initPid)
 
 	return nil
-}
-
-// newContainerInitExecutor constructs a containerInitExecutor with the default implementations.
-// This acts as the main entry point for spawning the container init process workflow.
-func newContainerInitExecutor() *containerInitExecutor {
-	return &containerInitExecutor{
-		commandFactory: &execCommandFactory{},
-	}
 }
 
 // processExecutor defines the behavior for spawning the container init process.

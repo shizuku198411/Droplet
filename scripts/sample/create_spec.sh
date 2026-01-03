@@ -6,7 +6,7 @@ CWD=/
 #CMD='/usr/bin/python3 -m http.server 8777'
 #CMD='/bin/sh -c "echo hello world!; sleep 10"'
 CMD='/bin/sh'
-HOSTNAME=mycontainer
+HOSTNAME=mycontainer1
 
 IF_NAME=eth0
 IF_ADDR=10.166.0.1/24

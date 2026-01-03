@@ -65,7 +65,7 @@ func commandSpec() *cli.Command {
 				Name:  "dns",
 				Usage: "dns server",
 			},
-			&cli.StringFlag{
+			&cli.StringSliceFlag{
 				Name:  "image_layer",
 				Usage: "image layer path",
 			},
@@ -146,7 +146,7 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 
 	// image
 	// image layer
-	imageLayer := ctx.String("image_layer")
+	imageLayer := ctx.StringSlice("image_layer")
 	// upper dir
 	upperDir := ctx.String("upper_dir")
 	// work dir

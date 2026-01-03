@@ -9,127 +9,150 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// == test for func:JsonToString ==
-func TestJsonToString_1(t *testing.T) {
-	type JsonObject struct {
+func TestJsonToString_Success(t *testing.T) {
+	// == arrange ==
+	type JsonStruct struct {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}
+	input := JsonStruct{Name: "user", Age: 20}
 
-	input := JsonObject{
-		Name: "user",
-		Age:  20,
-	}
+	// == act ==
+	got, err := JsonToString(input)
 
-	result, err := JsonToString(input)
-	if err != nil {
-		t.Fatalf("invalid json struct: %v", err)
-	}
-
-	expect := "{\"name\":\"user\",\"age\":20}"
-
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.Equal(t, `{"name":"user","age":20}`, got)
+	assert.Nil(t, err)
 }
 
-// ================================
+func TestJsonToString_InvalidJsonStructError(t *testing.T) {
+	// == arrange ==
+	input := make(chan int)
 
-// == test for func:StringToJson ==
-func TestStringToJson_1(t *testing.T) {
-	input := "{\"name\": \"user\", \"age\": 20}"
+	// == act ==
+	got, err := JsonToString(input)
 
-	type JsonObject struct {
+	// == assert ==
+	assert.Equal(t, "", got)
+	assert.NotNil(t, err)
+}
+
+func TestStringToJson_Success(t *testing.T) {
+	// == arrange ==
+	type JsonStruct struct {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}
+	var jsonObject JsonStruct
+	input := `{"name":"user","age":20}`
 
-	var result JsonObject
-	if err := StringToJson(input, &result); err != nil {
-		t.Fatalf("invalid json format: %v", err)
-	}
+	// == act ==
+	err := StringToJson(input, &jsonObject)
 
-	expect := JsonObject{
-		Name: "user",
-		Age:  20,
-	}
-
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.Equal(t, JsonStruct{Name: "user", Age: 20}, jsonObject)
+	assert.Nil(t, err)
 }
 
-// ================================
-
-// == test for func:WriteJsonToFile ==
-func TestWriteJsonToFile_1(t *testing.T) {
-	t.Parallel()
-
-	// create temporary directory
-	dir := t.TempDir()
-
-	type JsonObject struct {
+func TestStrtingToJson_InvalidJsonFormatError(t *testing.T) {
+	// == arrange ==
+	type JsonStruct struct {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}
-	input := JsonObject{
-		Name: "user",
-		Age:  20,
-	}
+	var jsonObject JsonStruct
+	input := "Non Json-Formatted String"
 
-	path := filepath.Join(dir, "test.json")
-	if err := WriteJsonToFile(path, input); err != nil {
-		t.Fatalf("WriteJsonToFile failed: %v", err)
-	}
+	// == act ==
+	err := StringToJson(input, &jsonObject)
 
-	// check if the file exists
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
-	}
-
-	// validate file contents
-	var result JsonObject
-	if err := json.Unmarshal(data, &result); err != nil {
-		t.Fatalf("invalid json written: %v", err)
-	}
-
-	expect := JsonObject{
-		Name: "user",
-		Age:  20,
-	}
-
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.NotNil(t, err)
 }
 
-// ===================================
-
-// == test for func:ReadJsonFile ==
-func TestReadJsonFile_1(t *testing.T) {
-	t.Parallel()
-
-	// create temporary directory
-	dir := t.TempDir()
-
-	// create json file
-	path := filepath.Join(dir, "test.json")
-	content := `{"name": "user", "age": 20}`
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("failed to write test file: %v", err)
-	}
-
-	// test json struct
-	type JsonObject struct {
+func TestWriteJsonToFile_Success(t *testing.T) {
+	// == arrange ==
+	type JsonStruct struct {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}
-	var result JsonObject
-	if err := ReadJsonFile(path, &result); err != nil {
-		t.Fatalf("ReadJsonFile returned error: %v", err)
-	}
+	jsonObject := JsonStruct{Name: "user", Age: 20}
+	path := filepath.Join(t.TempDir(), "test.json")
 
-	expect := JsonObject{
-		Name: "user",
-		Age:  20,
-	}
+	// == act ==
+	err := WriteJsonToFile(path, jsonObject)
 
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.Nil(t, err)
+
+	// read created file
+	content, fileOpenErr := os.ReadFile(path)
+	if fileOpenErr != nil {
+		t.Fatalf("file open failed")
+	}
+	assert.Equal(t, `{
+    "name": "user",
+    "age": 20
+}
+`, string(content))
 }
 
-// ================================
+func TestWriteJsonToFile_PathNotExistsError(t *testing.T) {
+	// == arrange ==
+	type JsonStruct struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+	jsonObject := JsonStruct{Name: "user", Age: 20}
+	path := "/not/exists/path"
+
+	// == act ==
+	err := WriteJsonToFile(path, jsonObject)
+
+	// == assert ==
+	assert.NotNil(t, err)
+}
+
+func TestReadJsonFile_Success(t *testing.T) {
+	// arrange
+	type JsonStruct struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+	jsonObject := JsonStruct{Name: "user", Age: 20}
+	path := filepath.Join(t.TempDir(), "test.json")
+
+	// create test json file
+	f, createErr := os.Create(path)
+	if createErr != nil {
+		t.Fatalf("create json file failed")
+	}
+	defer f.Close()
+	encoder := json.NewEncoder(f)
+	encoder.SetIndent("", "    ")
+	encoder.Encode(jsonObject)
+
+	// == act ==
+	var got JsonStruct
+	err := ReadJsonFile(path, &got)
+
+	// == assert ==
+	assert.Nil(t, err)
+	assert.Equal(t, jsonObject, got)
+}
+
+func TestReadJsonFile_FileNotExistsError(t *testing.T) {
+	// == arange ==
+	type JsonStruct struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+	path := "/not/exists/path"
+
+	// == act ==
+	var got JsonStruct
+	err := ReadJsonFile(path, &got)
+
+	// == assert ==
+	assert.NotNil(t, err)
+}

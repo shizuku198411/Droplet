@@ -17,6 +17,19 @@ func NewContainerInit() *ContainerInit {
 	}
 }
 
+// newRootContainerEnvPreparer returns the default environment preparer
+// implementation for containers started as root on the host.
+//
+// This preparer performs setup steps that assume the runtime is executing
+// with full privileges (e.g., user-namespace root switching, hostname
+// configuration). A separate implementation can be provided for rootless
+// execution environments.
+func newRootContainerEnvPrepare() *rootContainerEnvPreparer {
+	return &rootContainerEnvPreparer{
+		syscallHandler: newSyscallHandler(),
+	}
+}
+
 // ContainerInit represents the runtime logic executed inside the
 // container's init process.
 //
@@ -77,19 +90,6 @@ func (c *ContainerInit) Execute(opt InitOption) error {
 // that must occur before the container entrypoint is executed.
 type containerEnvPreparer interface {
 	prepare(spec spec.Spec) error
-}
-
-// newRootContainerEnvPreparer returns the default environment preparer
-// implementation for containers started as root on the host.
-//
-// This preparer performs setup steps that assume the runtime is executing
-// with full privileges (e.g., user-namespace root switching, hostname
-// configuration). A separate implementation can be provided for rootless
-// execution environments.
-func newRootContainerEnvPrepare() *rootContainerEnvPreparer {
-	return &rootContainerEnvPreparer{
-		syscallHandler: newSyscallHandler(),
-	}
 }
 
 // rootContainerEnvPreparer is the default envPreparer implementation used

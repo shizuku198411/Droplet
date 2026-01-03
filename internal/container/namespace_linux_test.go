@@ -1,6 +1,7 @@
 package container
 
 import (
+	"droplet/internal/spec"
 	"syscall"
 	"testing"
 
@@ -8,56 +9,91 @@ import (
 )
 
 func TestBuildNamespaceConfig_Success(t *testing.T) {
-	// dummySpec
-	// namespace target: mount, uts, user
-	dummySpec := dummySpec()
+	// == arrange ==
+	spec := spec.Spec{
+		LinuxSpec: spec.LinuxSpecObject{
+			Namespaces: []spec.NamespaceObject{
+				{
+					Type: "mount",
+				},
+				{
+					Type: "network",
+				},
+				{
+					Type: "uts",
+				},
+				{
+					Type: "pid",
+				},
+				{
+					Type: "ipc",
+				},
+				{
+					Type: "user",
+				},
+				{
+					Type: "cgroup",
+				},
+			},
+		},
+	}
 
-	nsCfg := buildNamespaceConfig(dummySpec)
+	// == act ==
+	nsConfig := buildNamespaceConfig(spec)
 
-	// assert
-	// mount = true
-	assert.Equal(t, true, nsCfg.mount)
-	// network = true
-	assert.Equal(t, true, nsCfg.network)
-	// uts = true
-	assert.Equal(t, true, nsCfg.uts)
-	// pid = true
-	assert.Equal(t, true, nsCfg.pid)
-	// ipc = true
-	assert.Equal(t, true, nsCfg.ipc)
-	// user = true
-	assert.Equal(t, true, nsCfg.user)
-	// cgroup = true
-	assert.Equal(t, true, nsCfg.cgroup)
+	// == assert ==
+	assert.True(t, nsConfig.mount)
+	assert.True(t, nsConfig.network)
+	assert.True(t, nsConfig.uts)
+	assert.True(t, nsConfig.pid)
+	assert.True(t, nsConfig.ipc)
+	assert.True(t, nsConfig.user)
+	assert.True(t, nsConfig.cgroup)
 }
 
 func TestBuildCloneFlags_Success(t *testing.T) {
-	// dummySpec
-	dummySpec := dummySpec()
-	nsCfg := buildNamespaceConfig(dummySpec)
-	cloneFlags := buildCloneFlags(nsCfg)
+	// == arrange ==
+	nsConfig := namespaceConfig{
+		mount:   true,
+		network: true,
+		uts:     true,
+		pid:     true,
+		ipc:     true,
+		user:    true,
+		cgroup:  true,
+	}
 
+	// == act ==
+	got := buildCloneFlags(nsConfig)
+
+	// == assert ==
 	var expect uintptr
 	expect |= (syscall.CLONE_NEWNS |
-		syscall.CLONE_NEWUTS |
-		syscall.CLONE_NEWUSER |
 		syscall.CLONE_NEWNET |
+		syscall.CLONE_NEWUTS |
 		syscall.CLONE_NEWPID |
 		syscall.CLONE_NEWIPC |
+		syscall.CLONE_NEWUSER |
 		syscall.CLONE_NEWCGROUP)
-
-	// assert
-	assert.Equal(t, expect, cloneFlags)
+	assert.Equal(t, expect, got)
 }
 
-func TestBuildRootUserNamespaceIDMap_Success(t *testing.T) {
-	// dummySpec
-	// namespace target: mount, uts
-	dummySpec := dummySpec()
-	nsCfg := buildNamespaceConfig(dummySpec)
+func TestBuildRootUserNamespaceIDMap_NsUserSuccess(t *testing.T) {
+	// == arrange ==
+	nsConfig := namespaceConfig{
+		mount:   true,
+		network: true,
+		uts:     true,
+		pid:     true,
+		ipc:     true,
+		user:    true,
+		cgroup:  true,
+	}
 
-	uidMap, gidMap := buildRootUserNamespaceIDMap(nsCfg)
+	// == arrange ==
+	uidMap, gidMap := buildRootUserNamespaceIDMap(nsConfig)
 
+	// == assert ==
 	expectUidMap := []syscall.SysProcIDMap{
 		{
 			ContainerID: 0,
@@ -72,37 +108,112 @@ func TestBuildRootUserNamespaceIDMap_Success(t *testing.T) {
 			Size:        65535,
 		},
 	}
-
-	// assert
-	assert.Equal(t, expectGidMap, gidMap)
 	assert.Equal(t, expectUidMap, uidMap)
+	assert.Equal(t, expectGidMap, gidMap)
+}
+
+func TestBuildRootUserNamespaceIDMap_NonNsUserSuccess(t *testing.T) {
+	// == arrange ==
+	nsConfig := namespaceConfig{
+		mount:   true,
+		network: true,
+		uts:     true,
+		pid:     true,
+		ipc:     true,
+		user:    false,
+		cgroup:  true,
+	}
+
+	// == arrange ==
+	uidMap, gidMap := buildRootUserNamespaceIDMap(nsConfig)
+
+	// == assert ==
+	assert.Nil(t, uidMap)
+	assert.Nil(t, gidMap)
+}
+
+func TestBuildProcAttrForRootContainer_Success(t *testing.T) {
+	// == arrange ==
+	nsConfig := namespaceConfig{
+		mount:   true,
+		network: true,
+		uts:     true,
+		pid:     true,
+		ipc:     true,
+		user:    true,
+		cgroup:  true,
+	}
+
+	// == act ==
+	got := buildProcAttrForRootContainer(nsConfig)
+
+	// == assert ==
+	expect := procAttr{
+		cloneFlags: (syscall.CLONE_NEWNS |
+			syscall.CLONE_NEWNET |
+			syscall.CLONE_NEWUTS |
+			syscall.CLONE_NEWPID |
+			syscall.CLONE_NEWIPC |
+			syscall.CLONE_NEWUSER |
+			syscall.CLONE_NEWCGROUP),
+		uidMap: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      0,
+				Size:        65535,
+			},
+		},
+		gidMap: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      0,
+				Size:        65535,
+			},
+		},
+		setGroupsFlag: true,
+	}
+	assert.Equal(t, expect, got)
 }
 
 func TestBuildSysProcAttr_Success(t *testing.T) {
-	// dummySpec
-	// namespace target: mount, uts, user
-	dummySpec := dummySpec()
-	nsCfg := buildNamespaceConfig(dummySpec)
-	cloneFlags := buildCloneFlags(nsCfg)
-	uidMap, gidMap := buildRootUserNamespaceIDMap(nsCfg)
-
-	procAttrStruct := procAttr{
-		cloneFlags:    cloneFlags,
-		uidMap:        uidMap,
-		gidMap:        gidMap,
+	// == arrange ==
+	procAttr := procAttr{
+		cloneFlags: (syscall.CLONE_NEWNS |
+			syscall.CLONE_NEWNET |
+			syscall.CLONE_NEWUTS |
+			syscall.CLONE_NEWPID |
+			syscall.CLONE_NEWIPC |
+			syscall.CLONE_NEWUSER |
+			syscall.CLONE_NEWCGROUP),
+		uidMap: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      0,
+				Size:        65535,
+			},
+		},
+		gidMap: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      0,
+				Size:        65535,
+			},
+		},
 		setGroupsFlag: true,
 	}
 
-	procAttr := buildSysProcAttr(procAttrStruct)
+	// == act ==
+	got := buildSysProcAttr(procAttr)
 
-	expect := syscall.SysProcAttr{
-		Cloneflags: syscall.CLONE_NEWNS |
-			syscall.CLONE_NEWUTS |
-			syscall.CLONE_NEWUSER |
+	// == assert ==
+	expect := &syscall.SysProcAttr{
+		Cloneflags: (syscall.CLONE_NEWNS |
 			syscall.CLONE_NEWNET |
-			syscall.CLONE_NEWIPC |
+			syscall.CLONE_NEWUTS |
 			syscall.CLONE_NEWPID |
-			syscall.CLONE_NEWCGROUP,
+			syscall.CLONE_NEWIPC |
+			syscall.CLONE_NEWUSER |
+			syscall.CLONE_NEWCGROUP),
 		UidMappings: []syscall.SysProcIDMap{
 			{
 				ContainerID: 0,
@@ -119,6 +230,5 @@ func TestBuildSysProcAttr_Success(t *testing.T) {
 		},
 		GidMappingsEnableSetgroups: true,
 	}
-
-	assert.Equal(t, &expect, procAttr)
+	assert.Equal(t, expect, got)
 }
