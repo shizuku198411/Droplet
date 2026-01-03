@@ -1,8 +1,8 @@
 package container
 
 import (
+	"droplet/internal/spec"
 	"os"
-	"syscall"
 )
 
 // NewContainerInit returns a ContainerInit wired with the default
@@ -10,8 +10,23 @@ import (
 // This is the standard entry point for executing the container init phase.
 func NewContainerInit() *ContainerInit {
 	return &ContainerInit{
-		fifoReader:      newContainerFifoHandler(),
-		processReplacer: newSyscallProcessReplacer(),
+		fifoReader:           newContainerFifoHandler(),
+		specLoader:           newFileSpecLoader(),
+		containerEnvPreparer: newRootContainerEnvPrepare(),
+		syscallHandler:       newSyscallHandler(),
+	}
+}
+
+// newRootContainerEnvPreparer returns the default environment preparer
+// implementation for containers started as root on the host.
+//
+// This preparer performs setup steps that assume the runtime is executing
+// with full privileges (e.g., user-namespace root switching, hostname
+// configuration). A separate implementation can be provided for rootless
+// execution environments.
+func newRootContainerEnvPrepare() *rootContainerEnvPreparer {
+	return &rootContainerEnvPreparer{
+		syscallHandler: newSyscallHandler(),
 	}
 }
 
@@ -22,8 +37,10 @@ func NewContainerInit() *ContainerInit {
 // replaces itself with the container entrypoint using execve-style
 // semantics (syscall.Exec).
 type ContainerInit struct {
-	fifoReader      fifoReader
-	processReplacer processReplacer
+	fifoReader           fifoReader
+	specLoader           specLoader
+	containerEnvPreparer containerEnvPreparer
+	syscallHandler       syscallHandler
 }
 
 // Execute performs the init sequence for the container.
@@ -40,43 +57,105 @@ func (c *ContainerInit) Execute(opt InitOption) error {
 	fifo := opt.Fifo
 	entrypoint := opt.Entrypoint
 
-	// read fifo for waiting start signal
+	// 1. read fifo for waiting start signal
 	if err := c.fifoReader.readFifo(fifo); err != nil {
 		return err
 	}
 
-	if err := c.processReplacer.Exec(entrypoint[0], entrypoint, os.Environ()); err != nil {
+	// 2. load config.json
+	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	if err != nil {
+		return err
+	}
+
+	// 3. prepare container environment
+	if err := c.containerEnvPreparer.prepare(spec); err != nil {
+		return err
+	}
+
+	// 4. replace process image with the container entrypoint
+	if err := c.syscallHandler.Exec(entrypoint[0], entrypoint, os.Environ()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// processReplacer abstracts the operation of replacing the current
-// process image with another program.
+// containerEnvPreparer defines the behavior for preparing the container
+// environment inside the init process.
 //
-// It is defined as an interface to allow syscall.Exec to be mocked
-// in tests and substituted by alternative implementations if needed.
-type processReplacer interface {
-	Exec(argv0 string, argv []string, envv []string) error
+// Implementations of this interface are responsible for performing
+// container-local setup steps such as user namespace UID/GID switching,
+// hostname configuration, filesystem setup, and other initialization logic
+// that must occur before the container entrypoint is executed.
+type containerEnvPreparer interface {
+	prepare(spec spec.Spec) error
 }
 
-// newSyscallProcessReplacer returns a processReplacer that delegates to
-// syscall.Exec to replace the current process image.
-func newSyscallProcessReplacer() *syscallProcessReplacer {
-	return &syscallProcessReplacer{}
+// rootContainerEnvPreparer is the default envPreparer implementation used
+// for privileged (root-executed) containers.
+//
+// It performs environment initialization tasks inside the init process,
+// such as switching to UID/GID 0 within the user namespace and configuring
+// the UTS namespace hostname. Additional setup steps (mounts, pivot_root,
+// capability adjustments, etc.) may be added to this implementation as
+// container initialization evolves.
+type rootContainerEnvPreparer struct {
+	syscallHandler containerEnvPrepareSyscallHandler
 }
 
-// syscallProcessReplacer is the default implementation of processReplacer.
+// prepare performs the container-environment initialization sequence based
+// on the provided OCI runtime specification.
 //
-// It invokes syscall.Exec directly, causing the current process to be
-// replaced by the specified executable if successful.
-type syscallProcessReplacer struct{}
+// The current sequence consists of:
+//
+//  1. Switching to UID/GID 0 within the user namespace
+//  2. Setting the container hostname in the UTS namespace
+//
+// Additional lifecycle steps (filesystem mounts, pivot_root, /proc setup,
+// etc.) can be appended to this method as required.
+func (p *rootContainerEnvPreparer) prepare(spec spec.Spec) error {
+	// 1. change uid=0(root) inside container
+	if err := p.switchToUserNamespaceRoot(); err != nil {
+		return err
+	}
 
-// Exec calls syscall.Exec with the provided arguments.
+	// 2. set hostname
+	if err := p.setHostnameToContainerId(spec.Hostname); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// switchToUserNamespaceRoot switches the current process credentials to
+// UID and GID 0 within the active user namespace.
 //
-// On success, this call does not return. Any returned error indicates
-// that the process could not be replaced.
-func (s *syscallProcessReplacer) Exec(argv0 string, argv []string, envv []string) error {
-	return syscall.Exec(argv0, argv, envv)
+// This ensures that subsequent privileged operations (such as mount,
+// pivot_root, or hostname changes) execute with the required namespace-
+// scoped capabilities, even when the process was not initially running as
+// namespace-root.
+func (p *rootContainerEnvPreparer) switchToUserNamespaceRoot() error {
+	// switch root group (gid=0)
+	if err := p.syscallHandler.Setresgid(0, 0, 0); err != nil {
+		return err
+	}
+	// switch root user (uid=0)
+	if err := p.syscallHandler.Setresuid(0, 0, 0); err != nil {
+		return err
+	}
+	return nil
+}
+
+// setHostnameToContainerId configures the hostname for the process inside
+// the UTS namespace.
+//
+// The hostname value is typically derived from the container ID or the
+// OCI spec. An error is returned if the syscall fails or the namespace
+// does not permit hostname updates.
+func (p *rootContainerEnvPreparer) setHostnameToContainerId(hostname string) error {
+	if err := p.syscallHandler.Sethostname([]byte(hostname)); err != nil {
+		return err
+	}
+	return nil
 }

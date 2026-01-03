@@ -64,16 +64,22 @@ func (c *ContainerRun) Run(opt RunOption) error {
 
 	// 3. prepare init subcommand
 	entrypoint := spec.Process.Args
-	initArgs := append([]string{"init", fifo}, entrypoint...)
+	initArgs := append([]string{"init", opt.ContainerId, fifo}, entrypoint...)
 	cmd := c.commandFactory.Command(os.Args[0], initArgs...)
 	// set stdout/stderr/stdin
-	cmd.SetStdout(os.Stdout)
-	cmd.SetStderr(os.Stderr)
-	cmd.SetStdin(os.Stdin)
+	if opt.Interactive {
+		cmd.SetStdout(os.Stdout)
+		cmd.SetStderr(os.Stderr)
+		cmd.SetStdin(os.Stdin)
+	}
+	// TODO: non-interactive mode
+	// when started in non-interactive mode, set stdout/stderr to log files
 
-	// apply clone flags
+	// apply SysProcAttr
 	nsConfig := buildNamespaceConfig(spec)
-	cmd.SetSysProcAttr(buildNamespaceAttr(nsConfig))
+	procAttr := buildProcAttrForRootContainer(nsConfig)
+	sysProcAttr := buildSysProcAttr(procAttr)
+	cmd.SetSysProcAttr(sysProcAttr)
 
 	// 4. start init process
 	if err := cmd.Start(); err != nil {
@@ -90,8 +96,10 @@ func (c *ContainerRun) Run(opt RunOption) error {
 	}
 
 	// 6. wait init process
-	if err := cmd.Wait(); err != nil {
-		return err
+	if opt.Interactive {
+		if err := cmd.Wait(); err != nil {
+			return err
+		}
 	}
 
 	return nil

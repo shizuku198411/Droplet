@@ -6,32 +6,56 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestDefaultRootDir_DefaultReturn_Success(t *testing.T) {
+	// == arrange ==
+
+	// == act ==
+	got := defaultRootDir()
+
+	// == assert ==
+	assert.Equal(t, "/etc/raind/container", got)
+}
+
+func TestDefaultRootDir_EnvSet_Success(t *testing.T) {
+	// == arrange ==
+	t.Setenv("RAIND_ROOT_DIR", "/path/to/root")
+
+	// == act ==
+	got := defaultRootDir()
+
+	// == assert ==
+	assert.Equal(t, "/path/to/root", got)
+}
+
 func TestContainerDir_Success(t *testing.T) {
-	containerId := "123456"
+	// == arrange ==
+	containerId := "12345"
 
-	result := containerDir(containerId)
+	// == act ==
+	got := containerDir(containerId)
 
-	expect := "/etc/raind/container/123456"
-
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.Equal(t, "/etc/raind/container/12345", got)
 }
 
 func TestConfigFilePath_Success(t *testing.T) {
-	containerId := "123456"
+	// == arrange ==
+	containerId := "12345"
 
-	result := configFilePath(containerId)
+	// == act ==
+	got := configFilePath(containerId)
 
-	expect := "/etc/raind/container/123456/config.json"
-
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.Equal(t, "/etc/raind/container/12345/config.json", got)
 }
 
 func TestFifoPath_Success(t *testing.T) {
-	containerId := "123456"
+	// == arrange ==
+	containerId := "12345"
 
-	result := fifoPath(containerId)
+	// == act ==
+	got := fifoPath(containerId)
 
-	expect := "/etc/raind/container/123456/exec.fifo"
-
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.Equal(t, "/etc/raind/container/12345/exec.fifo", got)
 }

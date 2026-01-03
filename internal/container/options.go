@@ -7,8 +7,9 @@ type CreateOption struct {
 
 // init options
 type InitOption struct {
-	Fifo       string
-	Entrypoint []string
+	ContainerId string
+	Fifo        string
+	Entrypoint  []string
 }
 
 // start options
@@ -19,4 +20,5 @@ type StartOption struct {
 // run options
 type RunOption struct {
 	ContainerId string
+	Interactive bool
 }

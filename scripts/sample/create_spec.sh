@@ -3,10 +3,10 @@
 CID=123456
 ROOTFS=/
 CWD=/
-CMD='/usr/bin/python3 -m http.server 8777'
+#CMD='/usr/bin/python3 -m http.server 8777'
 #CMD='/bin/sh -c "echo hello world!; sleep 10"'
-#CMD='/bin/sh'
-HOSTNAME=mycontainer
+CMD='/bin/sh'
+HOSTNAME=mycontainer1
 
 IF_NAME=eth0
 IF_ADDR=10.166.0.1/24
@@ -20,10 +20,12 @@ MERGE_DIR=/merge/path
 
 OUTDIR=/etc/raind/container/$CID
 
+
 ./bin/droplet spec \
   --rootfs "$ROOTFS" \
   --cwd "$CWD" \
   --command "$CMD" \
+  --ns "mount" --ns "network" --ns "uts" --ns "pid" --ns "ipc" --ns "user" --ns "cgroup" \
   --hostname "$HOSTNAME" \
   --if_name "$IF_NAME" \
   --if_addr "$IF_ADDR" \

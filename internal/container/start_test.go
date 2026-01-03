@@ -1,66 +1,87 @@
 package container
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStartExecute_Success(t *testing.T) {
-	fifo := "/tmp/fifo"
-	containerId := "123456"
+func buildStartOption(t *testing.T) StartOption {
+	t.Helper()
 
-	dummyFifoHandler := &dummyFifoHandler{path: fifo}
-	dummyContainerStart := &ContainerStart{
-		fifoHandler: dummyFifoHandler,
+	return StartOption{
+		ContainerId: "12345",
 	}
-
-	result := dummyContainerStart.Execute(StartOption{ContainerId: containerId})
-
-	// assert
-	// 1. writeFifo() is being called
-	expectWriteFifoFlag := true
-	resultWriteFifoFlag := dummyFifoHandler.callFlag
-	assert.Equal(t, expectWriteFifoFlag, resultWriteFifoFlag)
-
-	// 2. removeFifo() is being called
-	expectRemoveFifoFlag := true
-	resultRemoveFifoFlag := dummyFifoHandler.callFlag
-	assert.Equal(t, expectRemoveFifoFlag, resultRemoveFifoFlag)
-
-	// 3. nil is returned
-	assert.Equal(t, nil, result)
 }
 
-func TestStartExecute_WriteFifoError(t *testing.T) {
-	fifo := "/tmp/fifo"
-	containerId := "123456"
+func TestNewContainerStart_Success(t *testing.T) {
+	// == arrange ==
 
-	dummyFifoHandler := &dummyFifoHandler{path: fifo, writeErr: fmt.Errorf("failed to write FIFO")}
-	dummyContainerStart := &ContainerStart{
-		fifoHandler: dummyFifoHandler,
-	}
+	// == act ==
+	containerStart := NewContainerStart()
 
-	result := dummyContainerStart.Execute(StartOption{ContainerId: containerId})
-
-	expect := fmt.Errorf("failed to write FIFO")
-
-	assert.Equal(t, expect, result)
+	// == assert ==
+	assert.NotNil(t, containerStart)
+	assert.NotNil(t, containerStart.fifoHandler)
 }
 
-func TestStartExecute_RemoveFifoError(t *testing.T) {
-	fifo := "/tmp/fifo"
-	containerId := "123456"
-
-	dummyFifoHandler := &dummyFifoHandler{path: fifo, removeErr: fmt.Errorf("failed to write FIFO")}
-	dummyContainerStart := &ContainerStart{
-		fifoHandler: dummyFifoHandler,
+func TestContainerStart_Success(t *testing.T) {
+	// == arrange ==
+	opts := buildStartOption(t)
+	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
+	containerStart := &ContainerStart{
+		fifoHandler: mockCotainerFifoHandler,
 	}
 
-	result := dummyContainerStart.Execute(StartOption{ContainerId: containerId})
+	// == act ==
+	err := containerStart.Execute(opts)
 
-	expect := fmt.Errorf("failed to write FIFO")
+	// == assert ==
+	// writeFifo() is called
+	assert.True(t, mockCotainerFifoHandler.writeFifoCallFlag)
+	// writeFifo() path is /etc/raind/container/<containerId>/exec.fifo
+	assert.Equal(t, "/etc/raind/container/12345/exec.fifo", mockCotainerFifoHandler.writeFifoPath)
+	// removeFifo() is called
+	assert.True(t, mockCotainerFifoHandler.removeFifoCallFlag)
+	// removeFifo() path is /etc/raind/container/<containerId>/exec.fifo
+	assert.Equal(t, "/etc/raind/container/12345/exec.fifo", mockCotainerFifoHandler.removeFifoPath)
+	// error is nil
+	assert.Nil(t, err)
+}
 
-	assert.Equal(t, expect, result)
+func TestContainerStart_WriteFifoError(t *testing.T) {
+	// == arrange ==
+	opts := buildStartOption(t)
+	mockCotainerFifoHandler := &mockCotainerFifoHandler{
+		writeFifoErr: errors.New("writeFifo() failed"),
+	}
+	containerStart := &ContainerStart{
+		fifoHandler: mockCotainerFifoHandler,
+	}
+
+	// == act ==
+	err := containerStart.Execute(opts)
+
+	// == assert ==
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("writeFifo() failed"), err)
+}
+
+func TestContainerStart_RemoveFifoError(t *testing.T) {
+	// == arrange ==
+	opts := buildStartOption(t)
+	mockCotainerFifoHandler := &mockCotainerFifoHandler{
+		removeFifoErr: errors.New("removeFifo() failed"),
+	}
+	containerStart := &ContainerStart{
+		fifoHandler: mockCotainerFifoHandler,
+	}
+
+	// == act ==
+	err := containerStart.Execute(opts)
+
+	// == assert ==
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("removeFifo() failed"), err)
 }

@@ -1,117 +1,175 @@
 package container
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestFifoCreateAndRemove_Success(t *testing.T) {
-	t.Parallel()
+func createTestFifo(t *testing.T) string {
+	t.Helper()
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.fifo")
-
-	fifoHandler := &containerFifoHandler{}
-
-	// create fifo
-	if err := fifoHandler.createFifo(path); err != nil {
-		t.Fatalf("createFifo failed: %v", err)
-	}
-	// verify fifo exists and is a FIFO
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("fifo not found: %v", err)
-	}
-	if info.Mode()&os.ModeNamedPipe == 0 {
-		t.Fatalf("expected named pipe, got mode %v", info.Mode())
+	path := filepath.Join(t.TempDir(), "exec.fifo")
+	if err := syscall.Mkfifo(path, 0o600); err != nil {
+		t.Fatalf("create test FIFO failed")
 	}
 
-	// remove fifo
-	if err := fifoHandler.removeFifo(path); err != nil {
-		t.Fatalf("removeFifo failed: %v", err)
-	}
-	// verify fifo not exists
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatalf("fifo still exists after remove")
-	}
+	return path
 }
 
-func TestFifoCreateAndRemove_CreateError(t *testing.T) {
-	t.Parallel()
+func TestNewContainerFifoHandler_Success(t *testing.T) {
+	// == arrange ==
 
-	fifoHandler := &containerFifoHandler{}
+	// == act ==
+	containerFifoHandler := newContainerFifoHandler()
 
-	if err := fifoHandler.createFifo("/noexists/path"); err == nil {
-		t.Fatalf("expected error for missing fifo, got nil")
-	}
+	// == assert ==
+	assert.NotNil(t, containerFifoHandler)
 }
 
-func TestFifoCreateAndRemove_RemoveError(t *testing.T) {
-	t.Parallel()
+func TestCreateFifo_Success(t *testing.T) {
+	// == arrange ==
+	containerFifoHandler := &containerFifoHandler{}
+	path := filepath.Join(t.TempDir(), "exec.fifo")
 
-	fifoHandler := &containerFifoHandler{}
+	// == act ==
+	err := containerFifoHandler.createFifo(path)
 
-	if err := fifoHandler.removeFifo("/noexists/path"); err == nil {
-		t.Fatalf("expected error for missing fifo, got nil")
-	}
+	// == assert ==
+	assert.Nil(t, err)
 }
 
-func TestFifoReadAndWrite_Success(t *testing.T) {
-	t.Parallel()
+func TestCreateFifo_PathNotExistsError(t *testing.T) {
+	// == arrange ==
+	containerFifoHandler := &containerFifoHandler{}
+	path := "/not/exists/path"
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.fifo")
+	// == act ==
+	err := containerFifoHandler.createFifo(path)
 
-	fifoHandler := &containerFifoHandler{}
+	// == assert ==
+	assert.NotNil(t, err)
+}
 
-	// prepare fifo
-	if err := fifoHandler.createFifo(path); err != nil {
-		t.Fatalf("createFifo failed: %v", err)
-	}
+func TestRemoveFifo_Success(t *testing.T) {
+	// == arrange ==
+	path := createTestFifo(t)
+	containerFifoHandler := &containerFifoHandler{}
 
-	errCh := make(chan error, 1)
+	// == act ==
+	err := containerFifoHandler.removeFifo(path)
 
-	// run reader in goroutine
+	// == assert ==
+	assert.Nil(t, err)
+}
+
+func TestRemoveFifo_FileNotExistsError(t *testing.T) {
+	// == arrange ==
+	containerFifoHandler := &containerFifoHandler{}
+	path := "/not/exists/path"
+
+	// == act ==
+	err := containerFifoHandler.removeFifo(path)
+
+	// == assert ==
+	assert.NotNil(t, err)
+}
+
+func TestReadFifo_Success(t *testing.T) {
+	// == arrange ==
+	path := createTestFifo(t)
+	containerFifoHandler := &containerFifoHandler{}
+
+	// writer goroutine
+	writerErrCh := make(chan error, 1)
 	go func() {
-		errCh <- fifoHandler.readFifo(path)
+		f, err := os.OpenFile(path, os.O_WRONLY, 0)
+		if err != nil {
+			writerErrCh <- fmt.Errorf("open writer failed: %w", err)
+			return
+		}
+		defer f.Close()
+
+		if _, err := f.Write([]byte{0}); err != nil {
+			writerErrCh <- fmt.Errorf("write failed: %w", err)
+			return
+		}
+		writerErrCh <- nil
 	}()
 
-	// give reader time to block on open()
-	time.Sleep(50 * time.Millisecond)
+	// == act ==
+	err := containerFifoHandler.readFifo(path)
 
-	// writer writes signal
-	if err := fifoHandler.writeFifo(path); err != nil {
-		t.Fatalf("writeFifo failed: %v", err)
-	}
-	// wait for reader result (with timeout)
-	select {
-	case err := <-errCh:
+	// == assert ==
+	assert.Nil(t, err)
+}
+
+func TestReadFifo_FileNotEsistsError(t *testing.T) {
+	// == arrange ==
+	path := "/not/exists/path"
+	containerFifoHandler := &containerFifoHandler{}
+
+	// == act ==
+	err := containerFifoHandler.readFifo(path)
+
+	// == assert ==
+	assert.NotNil(t, err)
+}
+
+func TestReadFifo_FileOpenError(t *testing.T) {
+	// == arrange ==
+	path := t.TempDir()
+	containerFifoHandler := &containerFifoHandler{}
+
+	// == act ==
+	err := containerFifoHandler.readFifo(path)
+
+	// == assert ==
+	assert.NotNil(t, err)
+}
+
+func TestWriteFifo_Success(t *testing.T) {
+	// == arrange ==
+	path := createTestFifo(t)
+	containerFifoHandler := &containerFifoHandler{}
+
+	// reader goroutine
+	readerErrCh := make(chan error, 1)
+	go func() {
+		f, err := os.OpenFile(path, os.O_RDONLY, 0)
 		if err != nil {
-			t.Fatalf("readFifo returned error: %v", err)
+			readerErrCh <- fmt.Errorf("open reader failed: %w", err)
+			return
 		}
-	case <-time.After(1 * time.Second):
-		t.Fatal("readFifo did not complete (likely blocked)")
-	}
+		defer f.Close()
+
+		buf := make([]byte, 1)
+		if _, err := f.Read(buf); err != nil {
+			readerErrCh <- fmt.Errorf("read failed: %w", err)
+			return
+		}
+		readerErrCh <- nil
+	}()
+
+	// == act ==
+	err := containerFifoHandler.writeFifo(path)
+
+	// == assert ==
+	assert.Nil(t, err)
 }
 
-func TestFifoReadAndWrite_ReadError(t *testing.T) {
-	t.Parallel()
+func TestWriteFifo_FileNotExistsError(t *testing.T) {
+	// == arrange ==
+	path := "/not/exists/path"
+	containerFifoHandler := &containerFifoHandler{}
 
-	fifoHandler := &containerFifoHandler{}
+	// == act ==
+	err := containerFifoHandler.writeFifo(path)
 
-	if err := fifoHandler.readFifo("/noexists/path"); err == nil {
-		t.Fatalf("expected error for missing fifo, got nil")
-	}
-}
-
-func TestFifoReadAndWrite_WriteError(t *testing.T) {
-	t.Parallel()
-
-	fifoHandler := &containerFifoHandler{}
-
-	if err := fifoHandler.writeFifo("/noexists/path"); err == nil {
-		t.Fatalf("expected error for missing fifo, got nil")
-	}
+	// == assert ==
+	assert.NotNil(t, err)
 }

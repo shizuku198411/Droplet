@@ -83,10 +83,86 @@ func (e *execCmd) SetStderr(w io.Writer) {
 	e.cmd.Stderr = w
 }
 
+// SetStdin sets the standard input stream for the underlying command.
 func (e *execCmd) SetStdin(r io.Reader) {
 	e.cmd.Stdin = r
 }
 
+// SetSysProcAttr assigns the provided SysProcAttr to the underlying exec.Cmd.
 func (e *execCmd) SetSysProcAttr(attr *syscall.SysProcAttr) {
 	e.cmd.SysProcAttr = attr
+}
+
+// syscallHandler abstracts the operation of replacing the current
+// process image with another program.
+//
+// It is defined as an interface to allow syscall.Exec to be mocked
+// in tests and substituted by alternative implementations if needed.
+type syscallHandler interface {
+	Exec(argv0 string, argv []string, envv []string) error
+}
+
+// containerEnvPrepareSyscallHandler abstracts the set of syscalls used during
+// container environment preparation inside the init process.
+//
+// This interface allows environment-setup logic (such as switching to the
+// user-namespace root or configuring the UTS namespace hostname) to be tested
+// without invoking real kernel syscalls. Production code typically provides a
+// syscall-backed implementation, while unit tests may supply a mock or stub
+// implementation to validate control flow and error handling.
+type containerEnvPrepareSyscallHandler interface {
+	Setresgid(rgid int, egid int, sgid int) error
+	Setresuid(ruid int, euid int, suid int) error
+	Sethostname(p []byte) error
+}
+
+// newSyscallHandler returns a kernelSyscall that delegates to
+// syscall.Exec to replace the current process image.
+func newSyscallHandler() *kernelSyscall {
+	return &kernelSyscall{}
+}
+
+// kerneklSyscall is the default implementation of processReplacer.
+//
+// It invokes syscall.Exec directly, causing the current process to be
+// replaced by the specified executable if successful.
+type kernelSyscall struct{}
+
+// Exec calls syscall.Exec with the provided arguments.
+//
+// On success, this call does not return. Any returned error indicates
+// that the process could not be replaced.
+func (k *kernelSyscall) Exec(argv0 string, argv []string, envv []string) error {
+	return syscall.Exec(argv0, argv, envv)
+}
+
+// Setresgid changes the real, effective, and saved group IDs of the current
+// process by invoking the kernel's setresgid(2) syscall.
+//
+// In the context of container initialization, this is typically used to switch
+// the init process to GID 0 within the active user namespace before executing
+// privileged setup operations.
+func (k *kernelSyscall) Setresgid(rgid int, egid int, sgid int) error {
+	return syscall.Setresgid(rgid, egid, sgid)
+}
+
+// Setresuid changes the real, effective, and saved user IDs of the current
+// process by invoking the setresuid(2) syscall.
+//
+// During container environment preparation, this is commonly called immediately
+// after Setresgid to complete the transition to UID 0 inside the user
+// namespace so that privileged operations (e.g., mounts, hostname changes)
+// may be performed safely.
+func (k *kernelSyscall) Setresuid(ruid int, euid int, suid int) error {
+	return syscall.Setresuid(ruid, euid, suid)
+}
+
+// Sethostname sets the hostname of the current UTS namespace by invoking the
+// sethostname(2) syscall.
+//
+// Container init processes call this to assign a container-specific hostname
+// derived from the OCI runtime specification or container identifier. Errors
+// are returned if the operation is not permitted within the current namespace.
+func (k *kernelSyscall) Sethostname(p []byte) error {
+	return syscall.Sethostname(p)
 }

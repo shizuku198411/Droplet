@@ -18,6 +18,14 @@ func NewContainerCreator() *ContainerCreator {
 	}
 }
 
+// newContainerInitExecutor constructs a containerInitExecutor with the default implementations.
+// This acts as the main entry point for spawning the container init process workflow.
+func newContainerInitExecutor() *containerInitExecutor {
+	return &containerInitExecutor{
+		commandFactory: &execCommandFactory{},
+	}
+}
+
 // ContainerCreator orchestrates the container creation flow.
 //
 // The flow currently consists of:
@@ -49,7 +57,7 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 	}
 
 	// execute init subcommand
-	initPid, err := c.processExecutor.executeInit(spec, fifo)
+	initPid, err := c.processExecutor.executeInit(opt.ContainerId, spec, fifo)
 	if err != nil {
 		return err
 	}
@@ -59,20 +67,12 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 	return nil
 }
 
-// newContainerInitExecutor constructs a containerInitExecutor with the default implementations.
-// This acts as the main entry point for spawning the container init process workflow.
-func newContainerInitExecutor() *containerInitExecutor {
-	return &containerInitExecutor{
-		commandFactory: &execCommandFactory{},
-	}
-}
-
 // processExecutor defines the behavior for spawning the container init process.
 //
 // It is an interface so that the behavior can be mocked in tests and
 // replaced by alternative implementations if needed.
 type processExecutor interface {
-	executeInit(spec spec.Spec, fifo string) (int, error)
+	executeInit(containerId string, spec spec.Spec, fifo string) (int, error)
 }
 
 // containerInitExecutor is the default implementation of processExecutor.
@@ -88,17 +88,20 @@ type containerInitExecutor struct {
 // The init process is started as a child of the current runtime binary.
 // The FIFO path is passed as an argument so that the init process can
 // synchronize with the runtime.
-func (c *containerInitExecutor) executeInit(spec spec.Spec, fifo string) (int, error) {
+func (c *containerInitExecutor) executeInit(containerId string, spec spec.Spec, fifo string) (int, error) {
 	// retrieve entrypoint from spec
 	entrypoint := spec.Process.Args
 
 	// prepare init subcommand
-	initArgs := append([]string{"init", fifo}, entrypoint...)
+	initArgs := append([]string{"init", containerId, fifo}, entrypoint...)
 	cmd := c.commandFactory.Command(os.Args[0], initArgs...)
+	// TODO: set stdout/stderr to log files
 
-	// apply clone flags
+	// apply SysProcAttr
 	nsConfig := buildNamespaceConfig(spec)
-	cmd.SetSysProcAttr(buildNamespaceAttr(nsConfig))
+	procAttr := buildProcAttrForRootContainer(nsConfig)
+	sysProcAttr := buildSysProcAttr(procAttr)
+	cmd.SetSysProcAttr(sysProcAttr)
 
 	// execute init subcommand
 	if err := cmd.Start(); err != nil {
