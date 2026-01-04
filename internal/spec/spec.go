@@ -92,5 +92,4 @@ type ImageConfigObject struct {
 	ImageLayer []string `json:"imageLayer"`
 	UpperDir   string   `json:"upperDir"`
 	WorkDir    string   `json:"workDir"`
-	MergeDir   string   `json:"mergeDir"`
 }

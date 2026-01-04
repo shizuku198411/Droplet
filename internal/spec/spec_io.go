@@ -2,6 +2,7 @@ package spec
 
 import (
 	"droplet/internal/utils"
+	"fmt"
 	"path/filepath"
 )
 
@@ -63,14 +64,9 @@ func buildMountSpec(opts ConfigOptions) []MountObject {
 		},
 		{
 			Destination: "/sys/fs/cgroup",
-			Type:        "cgroup",
+			Type:        "cgroup2",
 			Source:      "cgroup",
-			Options: []string{
-				"ro",
-				"nosuid",
-				"noexec",
-				"nodev",
-			},
+			Options:     []string{},
 		},
 		{
 			Destination: "/dev/mqueue",
@@ -92,6 +88,33 @@ func buildMountSpec(opts ConfigOptions) []MountObject {
 				"nodev",
 				"mode=1777",
 				"size=67108864",
+			},
+		},
+		{
+			Destination: "/etc/resolv.conf",
+			Type:        "bind",
+			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/resolv.conf", opts.Hostname),
+			Options: []string{
+				"rbind",
+				"rprivate",
+			},
+		},
+		{
+			Destination: "/etc/hostname",
+			Type:        "bind",
+			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hostname", opts.Hostname),
+			Options: []string{
+				"rbind",
+				"rprivate",
+			},
+		},
+		{
+			Destination: "/etc/hosts",
+			Type:        "bind",
+			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hosts", opts.Hostname),
+			Options: []string{
+				"rbind",
+				"rprivate",
 			},
 		},
 	}
@@ -212,7 +235,6 @@ func buildImageSpec(opts ConfigOptions) ImageConfigObject {
 		ImageLayer: opts.Image.ImageLayer,
 		UpperDir:   opts.Image.UpperDir,
 		WorkDir:    opts.Image.WorkDir,
-		MergeDir:   opts.Image.MergeDir,
 	}
 }
 

@@ -24,7 +24,6 @@ type ImageOption struct {
 	ImageLayer []string
 	UpperDir   string
 	WorkDir    string
-	MergeDir   string
 }
 
 type ConfigOptions struct {

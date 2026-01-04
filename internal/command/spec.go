@@ -78,10 +78,6 @@ func commandSpec() *cli.Command {
 				Usage: "work directory",
 			},
 			&cli.StringFlag{
-				Name:  "merge_dir",
-				Usage: "merge directory",
-			},
-			&cli.StringFlag{
 				Name:  "output",
 				Usage: "output path",
 				Value: ".",
@@ -151,8 +147,6 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 	upperDir := ctx.String("upper_dir")
 	// work dir
 	workDir := ctx.String("work_dir")
-	// merge dir
-	mergeDir := ctx.String("merge_dir")
 
 	return spec.ConfigOptions{
 		Rootfs: rootfs,
@@ -174,7 +168,6 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 			ImageLayer: imageLayer,
 			UpperDir:   upperDir,
 			WorkDir:    workDir,
-			MergeDir:   mergeDir,
 		},
 	}, nil
 }
