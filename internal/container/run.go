@@ -86,7 +86,14 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
-	fmt.Printf("container processs pid: %d\n", cmd.Pid())
+	// output when init process has been created
+	// if --print-pid is setted, print message with pid
+	// otherwise print message with Container ID
+	if opt.PrintPidFlag {
+		fmt.Printf("create container success. pid: %d\n", cmd.Pid())
+	} else {
+		fmt.Printf("create container success. ID: %s\n", opt.ContainerId)
+	}
 
 	// 5. start container
 	if err := c.containerStart.Execute(

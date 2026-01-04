@@ -11,18 +11,27 @@ func commandCreate() *cli.Command {
 		Name:      "create",
 		Usage:     "create a container",
 		ArgsUsage: "<container-id>",
-		Action:    runCreate,
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:   "print-pid",
+				Hidden: true,
+				Value:  false,
+			},
+		},
+		Action: runCreate,
 	}
 }
 
 func runCreate(ctx *cli.Context) error {
 	// retrieve container ID
 	containerId := ctx.Args().Get(0)
+	pidPrintFlag := ctx.Bool("print-pid")
 
 	containerCreator := container.NewContainerCreator()
 	err := containerCreator.Create(
 		container.CreateOption{
-			ContainerId: containerId,
+			ContainerId:  containerId,
+			PrintPidFlag: pidPrintFlag,
 		},
 	)
 

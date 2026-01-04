@@ -2,7 +2,8 @@ package container
 
 // create options
 type CreateOption struct {
-	ContainerId string
+	ContainerId  string
+	PrintPidFlag bool
 }
 
 // init options
@@ -19,6 +20,7 @@ type StartOption struct {
 
 // run options
 type RunOption struct {
-	ContainerId string
-	Interactive bool
+	ContainerId  string
+	Interactive  bool
+	PrintPidFlag bool
 }

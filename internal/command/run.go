@@ -17,6 +17,11 @@ func commandRun() *cli.Command {
 				Usage:   "Run the container in interactive mode",
 				Aliases: []string{"i"},
 			},
+			&cli.BoolFlag{
+				Name:   "print-pid",
+				Hidden: true,
+				Value:  false,
+			},
 		},
 		Action: runRun,
 	}
@@ -28,12 +33,15 @@ func runRun(ctx *cli.Context) error {
 	// options
 	// interactive
 	interactive := ctx.Bool("interactive")
+	// print-pid
+	printPidFlag := ctx.Bool("print-pid")
 
 	containerRun := container.NewContainerRun()
 	err := containerRun.Run(
 		container.RunOption{
-			ContainerId: containerId,
-			Interactive: interactive,
+			ContainerId:  containerId,
+			Interactive:  interactive,
+			PrintPidFlag: printPidFlag,
 		},
 	)
 

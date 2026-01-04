@@ -62,7 +62,14 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 		return err
 	}
 
-	fmt.Printf("init process has been created. pid: %d\n", initPid)
+	// output when init process has been created
+	// if --print-pid is setted, print message with pid
+	// otherwise print message with Container ID
+	if opt.PrintPidFlag {
+		fmt.Printf("create container success. pid: %d\n", initPid)
+	} else {
+		fmt.Printf("create container success. ID: %s\n", opt.ContainerId)
+	}
 
 	return nil
 }
