@@ -25,7 +25,7 @@ func buildMockSpec(t *testing.T) spec.Spec {
 	return spec.Spec{
 		OciVersion: "1.2.0",
 		Root: spec.RootObject{
-			Path: "rootfs",
+			Path: "/etc/raind/container/mycontainer/merge",
 		},
 		Mounts: []spec.MountObject{
 			{
@@ -104,6 +104,33 @@ func buildMockSpec(t *testing.T) spec.Spec {
 					"nodev",
 					"mode=1777",
 					"size=67108864",
+				},
+			},
+			{
+				Destination: "/etc/resolv.conf",
+				Type:        "bind",
+				Source:      "/etc/raind/container/mycontainer/etc/resolv.conf",
+				Options: []string{
+					"rbind",
+					"rprivate",
+				},
+			},
+			{
+				Destination: "/etc/hostname",
+				Type:        "bind",
+				Source:      "/etc/raind/container/mycontainer/etc/hostname",
+				Options: []string{
+					"rbind",
+					"rprivate",
+				},
+			},
+			{
+				Destination: "/etc/hosts",
+				Type:        "bind",
+				Source:      "/etc/raind/container/mycontainer/etc/hosts",
+				Options: []string{
+					"rbind",
+					"rprivate",
 				},
 			},
 			{

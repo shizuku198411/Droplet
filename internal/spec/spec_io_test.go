@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -38,7 +39,6 @@ func buildConfigOptions(t *testing.T) ConfigOptions {
 			ImageLayer: []string{"/image/path"},
 			UpperDir:   "/upper/path",
 			WorkDir:    "/work/path",
-			MergeDir:   "/merge/path",
 		},
 	}
 }
@@ -110,14 +110,9 @@ func TestBuildMountSpec_Success(t *testing.T) {
 		},
 		{
 			Destination: "/sys/fs/cgroup",
-			Type:        "cgroup",
+			Type:        "cgroup2",
 			Source:      "cgroup",
-			Options: []string{
-				"ro",
-				"nosuid",
-				"noexec",
-				"nodev",
-			},
+			Options:     []string{},
 		},
 		{
 			Destination: "/dev/mqueue",
@@ -139,6 +134,33 @@ func TestBuildMountSpec_Success(t *testing.T) {
 				"nodev",
 				"mode=1777",
 				"size=67108864",
+			},
+		},
+		{
+			Destination: "/etc/resolv.conf",
+			Type:        "bind",
+			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/resolv.conf", opts.Hostname),
+			Options: []string{
+				"rbind",
+				"rprivate",
+			},
+		},
+		{
+			Destination: "/etc/hostname",
+			Type:        "bind",
+			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hostname", opts.Hostname),
+			Options: []string{
+				"rbind",
+				"rprivate",
+			},
+		},
+		{
+			Destination: "/etc/hosts",
+			Type:        "bind",
+			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hosts", opts.Hostname),
+			Options: []string{
+				"rbind",
+				"rprivate",
 			},
 		},
 		{
@@ -283,7 +305,6 @@ func TestBuildImageSpec_Success(t *testing.T) {
 		ImageLayer: []string{"/image/path"},
 		UpperDir:   "/upper/path",
 		WorkDir:    "/work/path",
-		MergeDir:   "/merge/path",
 	}
 	assert.Equal(t, expect, got)
 }
@@ -299,7 +320,7 @@ func TestBuildAnnotationSpec_Success(t *testing.T) {
 	expect := AnnotationObject{
 		Version: "0.1.0",
 		Net:     "{\"defaultInterface\":\"eth0\",\"interface\":{\"name\":\"eth0\",\"ipv4\":{\"address\":\"10.166.0.1/24\",\"gateway\":\"10.166.0.254\"},\"dns\":{\"servers\":[\"8.8.8.8\"]}}}",
-		Image:   "{\"rootfsType\":\"overlay\",\"imageLayer\":[\"/image/path\"],\"upperDir\":\"/upper/path\",\"workDir\":\"/work/path\",\"mergeDir\":\"/merge/path\"}",
+		Image:   "{\"rootfsType\":\"overlay\",\"imageLayer\":[\"/image/path\"],\"upperDir\":\"/upper/path\",\"workDir\":\"/work/path\"}",
 	}
 	assert.Equal(t, expect, got)
 }
@@ -365,14 +386,9 @@ func TestBuildSpec_Success(t *testing.T) {
 			},
 			{
 				Destination: "/sys/fs/cgroup",
-				Type:        "cgroup",
+				Type:        "cgroup2",
 				Source:      "cgroup",
-				Options: []string{
-					"ro",
-					"nosuid",
-					"noexec",
-					"nodev",
-				},
+				Options:     []string{},
 			},
 			{
 				Destination: "/dev/mqueue",
@@ -394,6 +410,33 @@ func TestBuildSpec_Success(t *testing.T) {
 					"nodev",
 					"mode=1777",
 					"size=67108864",
+				},
+			},
+			{
+				Destination: "/etc/resolv.conf",
+				Type:        "bind",
+				Source:      fmt.Sprintf("/etc/raind/container/%s/etc/resolv.conf", opts.Hostname),
+				Options: []string{
+					"rbind",
+					"rprivate",
+				},
+			},
+			{
+				Destination: "/etc/hostname",
+				Type:        "bind",
+				Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hostname", opts.Hostname),
+				Options: []string{
+					"rbind",
+					"rprivate",
+				},
+			},
+			{
+				Destination: "/etc/hosts",
+				Type:        "bind",
+				Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hosts", opts.Hostname),
+				Options: []string{
+					"rbind",
+					"rprivate",
 				},
 			},
 			{
@@ -480,7 +523,7 @@ func TestBuildSpec_Success(t *testing.T) {
 		Annotations: AnnotationObject{
 			Version: "0.1.0",
 			Net:     "{\"defaultInterface\":\"eth0\",\"interface\":{\"name\":\"eth0\",\"ipv4\":{\"address\":\"10.166.0.1/24\",\"gateway\":\"10.166.0.254\"},\"dns\":{\"servers\":[\"8.8.8.8\"]}}}",
-			Image:   "{\"rootfsType\":\"overlay\",\"imageLayer\":[\"/image/path\"],\"upperDir\":\"/upper/path\",\"workDir\":\"/work/path\",\"mergeDir\":\"/merge/path\"}",
+			Image:   "{\"rootfsType\":\"overlay\",\"imageLayer\":[\"/image/path\"],\"upperDir\":\"/upper/path\",\"workDir\":\"/work/path\"}",
 		},
 	}
 	assert.Equal(t, expect, got)
@@ -578,14 +621,9 @@ func TestLoadConfigFile_Success(t *testing.T) {
 			},
 			{
 				Destination: "/sys/fs/cgroup",
-				Type:        "cgroup",
+				Type:        "cgroup2",
 				Source:      "cgroup",
-				Options: []string{
-					"ro",
-					"nosuid",
-					"noexec",
-					"nodev",
-				},
+				Options:     []string{},
 			},
 			{
 				Destination: "/dev/mqueue",
@@ -607,6 +645,33 @@ func TestLoadConfigFile_Success(t *testing.T) {
 					"nodev",
 					"mode=1777",
 					"size=67108864",
+				},
+			},
+			{
+				Destination: "/etc/resolv.conf",
+				Type:        "bind",
+				Source:      fmt.Sprintf("/etc/raind/container/%s/etc/resolv.conf", opts.Hostname),
+				Options: []string{
+					"rbind",
+					"rprivate",
+				},
+			},
+			{
+				Destination: "/etc/hostname",
+				Type:        "bind",
+				Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hostname", opts.Hostname),
+				Options: []string{
+					"rbind",
+					"rprivate",
+				},
+			},
+			{
+				Destination: "/etc/hosts",
+				Type:        "bind",
+				Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hosts", opts.Hostname),
+				Options: []string{
+					"rbind",
+					"rprivate",
 				},
 			},
 			{
@@ -693,7 +758,7 @@ func TestLoadConfigFile_Success(t *testing.T) {
 		Annotations: AnnotationObject{
 			Version: "0.1.0",
 			Net:     "{\"defaultInterface\":\"eth0\",\"interface\":{\"name\":\"eth0\",\"ipv4\":{\"address\":\"10.166.0.1/24\",\"gateway\":\"10.166.0.254\"},\"dns\":{\"servers\":[\"8.8.8.8\"]}}}",
-			Image:   "{\"rootfsType\":\"overlay\",\"imageLayer\":[\"/image/path\"],\"upperDir\":\"/upper/path\",\"workDir\":\"/work/path\",\"mergeDir\":\"/merge/path\"}",
+			Image:   "{\"rootfsType\":\"overlay\",\"imageLayer\":[\"/image/path\"],\"upperDir\":\"/upper/path\",\"workDir\":\"/work/path\"}",
 		},
 	}
 	assert.Equal(t, expect, got)

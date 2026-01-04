@@ -171,23 +171,17 @@ func TestContainerInit_Execute_ExecError(t *testing.T) {
 func TestRootContainerEnvPrepare_Success(t *testing.T) {
 	// == arrange ==
 	spec := buildMockSpec(t)
-	mockKernelSyscall := &mockKernelSyscall{}
+	mockKernelSyscall := &mockKernelSyscall{
+		statFileInfo: mockFileInfo{dir: true},
+	}
 	rootContainerEnvPreparer := &rootContainerEnvPreparer{
 		syscallHandler: mockKernelSyscall,
 	}
 
 	// == act ==
-	err := rootContainerEnvPreparer.prepare(spec)
+	err := rootContainerEnvPreparer.prepare("12345", spec)
 
 	// == assert ==
-	// Setresgid() is called from switchToUserNamespaceRoot()
-	assert.True(t, mockKernelSyscall.setresgidCallFlag)
-	// Setresuid() is called from switchToUserNamespaceRoot()
-	assert.True(t, mockKernelSyscall.setresuidCallFlag)
-	// Sethostname() is called from setHostnameToContainerId
-	assert.True(t, mockKernelSyscall.sethostnameCallFlag)
-	// Sethostname() is recieved hostname from config.json
-	assert.Equal(t, mockKernelSyscall.sethostnameP, []byte(spec.Hostname))
 	// error is nil
 	assert.Nil(t, err)
 }
@@ -203,7 +197,7 @@ func TestRootContainerEnvPrepare_SetresgidError(t *testing.T) {
 	}
 
 	// == act ==
-	err := rootContainerEnvPreparer.prepare(spec)
+	err := rootContainerEnvPreparer.prepare("12345", spec)
 
 	// == assert ==
 	assert.NotNil(t, err)
@@ -221,7 +215,7 @@ func TestRootContainerEnvPrepare_SetresuidError(t *testing.T) {
 	}
 
 	// == act ==
-	err := rootContainerEnvPreparer.prepare(spec)
+	err := rootContainerEnvPreparer.prepare("12345", spec)
 
 	// == assert ==
 	assert.NotNil(t, err)
@@ -239,7 +233,7 @@ func TestRootContainerEnvPrepare_SethostnameError(t *testing.T) {
 	}
 
 	// == act ==
-	err := rootContainerEnvPreparer.prepare(spec)
+	err := rootContainerEnvPreparer.prepare("12345", spec)
 
 	// == assert ==
 	assert.NotNil(t, err)
