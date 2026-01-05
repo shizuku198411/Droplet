@@ -74,7 +74,7 @@ func (c *ContainerInit) Execute(opt InitOption) error {
 	}
 
 	// 3. prepare container environment
-	if err := c.containerEnvPreparer.prepare(opt.ContainerId, spec); err != nil {
+	if err := c.containerEnvPreparer.prepare(spec); err != nil {
 		return err
 	}
 
@@ -94,7 +94,7 @@ func (c *ContainerInit) Execute(opt InitOption) error {
 // hostname configuration, filesystem setup, and other initialization logic
 // that must occur before the container entrypoint is executed.
 type containerEnvPreparer interface {
-	prepare(containerId string, spec spec.Spec) error
+	prepare(spec spec.Spec) error
 }
 
 // rootContainerEnvPreparer is the default envPreparer implementation used
@@ -119,7 +119,7 @@ type rootContainerEnvPreparer struct {
 //
 // Additional lifecycle steps (filesystem mounts, pivot_root, /proc setup,
 // etc.) can be appended to this method as required.
-func (p *rootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) error {
+func (p *rootContainerEnvPreparer) prepare(spec spec.Spec) error {
 	// 1. change uid=0(root) inside container
 	if err := p.switchToUserNamespaceRoot(); err != nil {
 		return err
@@ -145,7 +145,7 @@ func (p *rootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) e
 		return err
 	}
 	// 7. pivot_root
-	if err := p.pivotRoot(containerId, spec.Root.Path); err != nil {
+	if err := p.pivotRoot(spec.Root.Path); err != nil {
 		return err
 	}
 
@@ -428,44 +428,32 @@ func (p *rootContainerEnvPreparer) createSymbolicLink(rootfs string) error {
 // pivotRoot performs a pivot_root into the given rootfs and cleans up the old root.
 //
 // The sequence is:
-//  1. chdir to the container root directory
-//  2. bind-mount the rootfs onto itself to make it a mount point
-//  3. create a put_old directory under the new root
-//  4. call pivot_root(new_root, put_old)
-//  5. chdir to "/"
-//  6. unmount the old root at /put_old with MNT_DETACH
-//  7. remove the /put_old directory
-func (p *rootContainerEnvPreparer) pivotRoot(containerId string, rootfs string) error {
-	// container root directory (/etc/raind/container/<container-id>)
-	containerRootDir := containerDir(containerId)
+//  1. create a put_old directory under the new root
+//  2. call pivot_root(new_root, put_old)
+//  3. chdir to "/"
+//  4. unmount the old root at /put_old with MNT_DETACH
+//  5. remove the /put_old directory
+func (p *rootContainerEnvPreparer) pivotRoot(rootfs string) error {
 	// oldroot directory
 	putoldDir := filepath.Join(rootfs, "put_old")
 
-	// 1. chdir to container root directory
-	if err := p.syscallHandler.Chdir(containerRootDir); err != nil {
-		return err
-	}
-	// 2. mount merged
-	if err := p.syscallHandler.Mount(rootfs, rootfs, "", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
-		return err
-	}
-	// 3. create put_old directory
+	// 1. create put_old directory
 	if err := p.syscallHandler.Mkdir(putoldDir, 0700); err != nil {
 		return err
 	}
-	// 4. pivot_root
+	// 2. pivot_root
 	if err := p.syscallHandler.PivotRoot(rootfs, putoldDir); err != nil {
 		return err
 	}
-	// 5. change directory to root
+	// 3. change directory to root
 	if err := p.syscallHandler.Chdir("/"); err != nil {
 		return err
 	}
-	// 6. unmount put_old
+	// 4. unmount put_old
 	if err := p.syscallHandler.Unmount("/put_old", syscall.MNT_DETACH); err != nil {
 		return err
 	}
-	// 7. remove put_old
+	// 5. remove put_old
 	if err := p.syscallHandler.Rmdir("/put_old"); err != nil {
 		return err
 	}

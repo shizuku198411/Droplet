@@ -6,15 +6,13 @@ import (
 
 type mockRootContainerEnvPreparer struct {
 	// prepare()
-	prepareCallFlag    bool
-	prepareContainerId string
-	prepareSpec        spec.Spec
-	prepareErr         error
+	prepareCallFlag bool
+	prepareSpec     spec.Spec
+	prepareErr      error
 }
 
-func (m *mockRootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) error {
+func (m *mockRootContainerEnvPreparer) prepare(spec spec.Spec) error {
 	m.prepareCallFlag = true
-	m.prepareContainerId = containerId
 	m.prepareSpec = spec
 	return m.prepareErr
 }

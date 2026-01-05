@@ -179,7 +179,7 @@ func TestRootContainerEnvPrepare_Success(t *testing.T) {
 	}
 
 	// == act ==
-	err := rootContainerEnvPreparer.prepare("12345", spec)
+	err := rootContainerEnvPreparer.prepare(spec)
 
 	// == assert ==
 	// error is nil
@@ -197,7 +197,7 @@ func TestRootContainerEnvPrepare_SetresgidError(t *testing.T) {
 	}
 
 	// == act ==
-	err := rootContainerEnvPreparer.prepare("12345", spec)
+	err := rootContainerEnvPreparer.prepare(spec)
 
 	// == assert ==
 	assert.NotNil(t, err)
@@ -215,7 +215,7 @@ func TestRootContainerEnvPrepare_SetresuidError(t *testing.T) {
 	}
 
 	// == act ==
-	err := rootContainerEnvPreparer.prepare("12345", spec)
+	err := rootContainerEnvPreparer.prepare(spec)
 
 	// == assert ==
 	assert.NotNil(t, err)
@@ -233,7 +233,7 @@ func TestRootContainerEnvPrepare_SethostnameError(t *testing.T) {
 	}
 
 	// == act ==
-	err := rootContainerEnvPreparer.prepare("12345", spec)
+	err := rootContainerEnvPreparer.prepare(spec)
 
 	// == assert ==
 	assert.NotNil(t, err)
