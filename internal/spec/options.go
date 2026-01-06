@@ -14,10 +14,12 @@ type ProcessOption struct {
 }
 
 type NetOption struct {
-	InterfaceName string
-	Address       string
-	Gateway       string
-	Dns           []string
+	HostInterface       string
+	BridgeInterfaceName string
+	InterfaceName       string
+	Address             string
+	Gateway             string
+	Dns                 []string
 }
 
 type ImageOption struct {

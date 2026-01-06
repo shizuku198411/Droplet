@@ -47,6 +47,16 @@ func commandSpec() *cli.Command {
 				Usage: "container hostname",
 			},
 			&cli.StringFlag{
+				Name:  "host_if_name",
+				Usage: "host interface name",
+				Value: "eth0",
+			},
+			&cli.StringFlag{
+				Name:  "bridge_if_name",
+				Usage: "bridge interface name",
+				Value: "raind_br0",
+			},
+			&cli.StringFlag{
 				Name:  "if_name",
 				Usage: "container interface name",
 				Value: "eth0",
@@ -131,6 +141,10 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 	hostname := ctx.String("hostname")
 
 	// net
+	// host interface name
+	hostIfName := ctx.String("host_if_name")
+	// bridge interface name
+	brIfName := ctx.String("bridge_if_name")
 	// interface name
 	ifName := ctx.String("if_name")
 	// interface address
@@ -159,10 +173,12 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 		Namespace: namespace,
 		Hostname:  hostname,
 		Net: spec.NetOption{
-			InterfaceName: ifName,
-			Address:       ifAddr,
-			Gateway:       ifGateway,
-			Dns:           dns,
+			HostInterface:       hostIfName,
+			BridgeInterfaceName: brIfName,
+			InterfaceName:       ifName,
+			Address:             ifAddr,
+			Gateway:             ifGateway,
+			Dns:                 dns,
 		},
 		Image: spec.ImageOption{
 			ImageLayer: imageLayer,

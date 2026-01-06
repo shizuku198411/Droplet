@@ -38,13 +38,15 @@ func TestContainerRun_Run_InteractiveSuccess(t *testing.T) {
 	mockContainerStart := &ContainerStart{
 		fifoHandler: mockCotainerFifoHandler,
 	}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	containerRun := &ContainerRun{
-		specLoader:              mockFileSpecLoader,
-		fifoCreator:             mockCotainerFifoHandler,
-		commandFactory:          mockExecCommandFactory,
-		containerStart:          mockContainerStart,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockFileSpecLoader,
+		fifoCreator:              mockCotainerFifoHandler,
+		commandFactory:           mockExecCommandFactory,
+		containerStart:           mockContainerStart,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==
@@ -55,10 +57,8 @@ func TestContainerRun_Run_InteractiveSuccess(t *testing.T) {
 	assert.True(t, mockFileSpecLoader.loadFileCallFlag)
 	// createFifo() is called
 	assert.True(t, mockCotainerFifoHandler.createFifoCallFlag)
-	// Command() is called
-	assert.True(t, mockExecCommandFactory.commandCallFlag)
 	// Command() args is "init <container-id> /etc/raind/container/12345/exec.fifo /bin/sh"
-	assert.Equal(t, []string{"init", "12345", "/etc/raind/container/12345/exec.fifo", "/bin/sh"}, mockExecCommandFactory.commandArgs)
+	assert.Equal(t, []string{"init", "12345", "/etc/raind/container/12345/exec.fifo", "/bin/sh"}, mockExecCommandFactory.commandCalls[0].args)
 	// SetStdout() is called
 	assert.True(t, mockExecCmd.setStdoutCallFlag)
 	// SetStderr() is called
@@ -92,13 +92,15 @@ func TestContainerRun_Run_NonInteractiveSuccess(t *testing.T) {
 	mockContainerStart := &ContainerStart{
 		fifoHandler: mockCotainerFifoHandler,
 	}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	containerRun := &ContainerRun{
-		specLoader:              mockFileSpecLoader,
-		fifoCreator:             mockCotainerFifoHandler,
-		commandFactory:          mockExecCommandFactory,
-		containerStart:          mockContainerStart,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockFileSpecLoader,
+		fifoCreator:              mockCotainerFifoHandler,
+		commandFactory:           mockExecCommandFactory,
+		containerStart:           mockContainerStart,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==
@@ -109,10 +111,8 @@ func TestContainerRun_Run_NonInteractiveSuccess(t *testing.T) {
 	assert.True(t, mockFileSpecLoader.loadFileCallFlag)
 	// createFifo() is called
 	assert.True(t, mockCotainerFifoHandler.createFifoCallFlag)
-	// Command() is called
-	assert.True(t, mockExecCommandFactory.commandCallFlag)
 	// Command() args is "init <container-id> /etc/raind/container/12345/exec.fifo /bin/sh"
-	assert.Equal(t, []string{"init", "12345", "/etc/raind/container/12345/exec.fifo", "/bin/sh"}, mockExecCommandFactory.commandArgs)
+	assert.Equal(t, []string{"init", "12345", "/etc/raind/container/12345/exec.fifo", "/bin/sh"}, mockExecCommandFactory.commandCalls[0].args)
 	// SetSysProcAttr() is called
 	assert.True(t, mockExecCmd.setSysProcAttrCallFlag)
 	// Start() is called
@@ -138,13 +138,15 @@ func TestContainerRun_Run_LoadFileError(t *testing.T) {
 	mockContainerStart := &ContainerStart{
 		fifoHandler: mockCotainerFifoHandler,
 	}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	containerRun := &ContainerRun{
-		specLoader:              mockFileSpecLoader,
-		fifoCreator:             mockCotainerFifoHandler,
-		commandFactory:          mockExecCommandFactory,
-		containerStart:          mockContainerStart,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockFileSpecLoader,
+		fifoCreator:              mockCotainerFifoHandler,
+		commandFactory:           mockExecCommandFactory,
+		containerStart:           mockContainerStart,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==
@@ -174,13 +176,15 @@ func TestContainerRun_Run_CreateFifoError(t *testing.T) {
 	mockContainerStart := &ContainerStart{
 		fifoHandler: mockCotainerFifoHandler,
 	}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	containerRun := &ContainerRun{
-		specLoader:              mockFileSpecLoader,
-		fifoCreator:             mockCotainerFifoHandler,
-		commandFactory:          mockExecCommandFactory,
-		containerStart:          mockContainerStart,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockFileSpecLoader,
+		fifoCreator:              mockCotainerFifoHandler,
+		commandFactory:           mockExecCommandFactory,
+		containerStart:           mockContainerStart,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==
@@ -189,6 +193,84 @@ func TestContainerRun_Run_CreateFifoError(t *testing.T) {
 	// == assert ==
 	assert.NotNil(t, err)
 	assert.Equal(t, errors.New("createFifo() failed"), err)
+}
+
+func TestContainerRun_Run_CgroupPrepareError(t *testing.T) {
+	// == arrange ==
+	opts := RunOption{
+		ContainerId: "12345",
+		Interactive: true,
+	}
+	mockFileSpecLoader := &mockFileSpecLoader{
+		loadFileSpec: buildMockSpec(t),
+	}
+	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
+	mockExecCmd := &mockExecCmd{}
+	mockExecCommandFactory := &mockExecCommandFactory{
+		commandExecutor: mockExecCmd,
+	}
+	mockContainerStart := &ContainerStart{
+		fifoHandler: mockCotainerFifoHandler,
+	}
+	mockContainerNetworkController := &mockContainerNetworkController{}
+	mockeContainerCgroupController := &mockeContainerCgroupController{
+		prepareErr: errors.New("prepare() failed"),
+	}
+	containerRun := &ContainerRun{
+		specLoader:               mockFileSpecLoader,
+		fifoCreator:              mockCotainerFifoHandler,
+		commandFactory:           mockExecCommandFactory,
+		containerStart:           mockContainerStart,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
+	}
+
+	// == act ==
+	err := containerRun.Run(opts)
+
+	// == assert ==
+	// error is not nil
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("prepare() failed"), err)
+}
+
+func TestContainerRun_Run_NetworkPrepareError(t *testing.T) {
+	// == arrange ==
+	opts := RunOption{
+		ContainerId: "12345",
+		Interactive: true,
+	}
+	mockFileSpecLoader := &mockFileSpecLoader{
+		loadFileSpec: buildMockSpec(t),
+	}
+	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
+	mockExecCmd := &mockExecCmd{}
+	mockExecCommandFactory := &mockExecCommandFactory{
+		commandExecutor: mockExecCmd,
+	}
+	mockContainerStart := &ContainerStart{
+		fifoHandler: mockCotainerFifoHandler,
+	}
+	mockContainerNetworkController := &mockContainerNetworkController{
+		prepareErr: errors.New("prepare() failed"),
+	}
+	mockeContainerCgroupController := &mockeContainerCgroupController{}
+	containerRun := &ContainerRun{
+		specLoader:               mockFileSpecLoader,
+		fifoCreator:              mockCotainerFifoHandler,
+		commandFactory:           mockExecCommandFactory,
+		containerStart:           mockContainerStart,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
+	}
+
+	// == act ==
+	err := containerRun.Run(opts)
+
+	// == assert ==
+	// error is not nil
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("prepare() failed"), err)
 }
 
 func TestContainerRun_Run_StartError(t *testing.T) {
@@ -210,13 +292,15 @@ func TestContainerRun_Run_StartError(t *testing.T) {
 	mockContainerStart := &ContainerStart{
 		fifoHandler: mockCotainerFifoHandler,
 	}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	containerRun := &ContainerRun{
-		specLoader:              mockFileSpecLoader,
-		fifoCreator:             mockCotainerFifoHandler,
-		commandFactory:          mockExecCommandFactory,
-		containerStart:          mockContainerStart,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockFileSpecLoader,
+		fifoCreator:              mockCotainerFifoHandler,
+		commandFactory:           mockExecCommandFactory,
+		containerStart:           mockContainerStart,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==
@@ -246,13 +330,15 @@ func TestContainerRun_Run_WaitError(t *testing.T) {
 	mockContainerStart := &ContainerStart{
 		fifoHandler: mockCotainerFifoHandler,
 	}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	containerRun := &ContainerRun{
-		specLoader:              mockFileSpecLoader,
-		fifoCreator:             mockCotainerFifoHandler,
-		commandFactory:          mockExecCommandFactory,
-		containerStart:          mockContainerStart,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockFileSpecLoader,
+		fifoCreator:              mockCotainerFifoHandler,
+		commandFactory:           mockExecCommandFactory,
+		containerStart:           mockContainerStart,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==

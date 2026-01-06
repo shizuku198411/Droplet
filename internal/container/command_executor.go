@@ -39,6 +39,7 @@ func (e *execCommandFactory) Command(name string, args ...string) commandExecuto
 type commandExecutor interface {
 	Start() error
 	Wait() error
+	Run() error
 	Pid() int
 	SetStdout(w io.Writer)
 	SetStderr(w io.Writer)
@@ -62,6 +63,10 @@ func (e *execCmd) Start() error {
 
 func (e *execCmd) Wait() error {
 	return e.cmd.Wait()
+}
+
+func (e *execCmd) Run() error {
+	return e.cmd.Run()
 }
 
 // Pid returns the PID of the started process.

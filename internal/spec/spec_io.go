@@ -215,7 +215,8 @@ func buildLinuxSpec(opts ConfigOptions) LinuxSpecObject {
 
 func buildNetSpec(opts ConfigOptions) NetConfigObject {
 	return NetConfigObject{
-		DefaultInterface: opts.Net.InterfaceName,
+		HostInterface:   opts.Net.HostInterface,
+		BridgeInterface: opts.Net.BridgeInterfaceName,
 		Interface: InterfaceObject{
 			Name: opts.Net.InterfaceName,
 			IPv4: IPv4Object{
