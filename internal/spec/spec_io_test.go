@@ -30,10 +30,12 @@ func buildConfigOptions(t *testing.T) ConfigOptions {
 		Namespace: []string{"mount"},
 		Hostname:  "mycontainer",
 		Net: NetOption{
-			InterfaceName: "eth0",
-			Address:       "10.166.0.1/24",
-			Gateway:       "10.166.0.254",
-			Dns:           []string{"8.8.8.8"},
+			HostInterface:       "eth0",
+			BridgeInterfaceName: "br0",
+			InterfaceName:       "eth0",
+			Address:             "10.166.0.1/24",
+			Gateway:             "10.166.0.254",
+			Dns:                 []string{"8.8.8.8"},
 		},
 		Image: ImageOption{
 			ImageLayer: []string{"/image/path"},
@@ -277,7 +279,8 @@ func TestBuildNetSpec_Success(t *testing.T) {
 
 	// == assert ==
 	expect := NetConfigObject{
-		DefaultInterface: "eth0",
+		HostInterface:   "eth0",
+		BridgeInterface: "br0",
 		Interface: InterfaceObject{
 			Name: "eth0",
 			IPv4: IPv4Object{
@@ -319,7 +322,7 @@ func TestBuildAnnotationSpec_Success(t *testing.T) {
 	// == assert ==
 	expect := AnnotationObject{
 		Version: "0.1.0",
-		Net:     "{\"defaultInterface\":\"eth0\",\"interface\":{\"name\":\"eth0\",\"ipv4\":{\"address\":\"10.166.0.1/24\",\"gateway\":\"10.166.0.254\"},\"dns\":{\"servers\":[\"8.8.8.8\"]}}}",
+		Net:     "{\"hostInterface\":\"eth0\",\"bridgeInterface\":\"br0\",\"interface\":{\"name\":\"eth0\",\"ipv4\":{\"address\":\"10.166.0.1/24\",\"gateway\":\"10.166.0.254\"},\"dns\":{\"servers\":[\"8.8.8.8\"]}}}",
 		Image:   "{\"rootfsType\":\"overlay\",\"imageLayer\":[\"/image/path\"],\"upperDir\":\"/upper/path\",\"workDir\":\"/work/path\"}",
 	}
 	assert.Equal(t, expect, got)
@@ -522,7 +525,7 @@ func TestBuildSpec_Success(t *testing.T) {
 		},
 		Annotations: AnnotationObject{
 			Version: "0.1.0",
-			Net:     "{\"defaultInterface\":\"eth0\",\"interface\":{\"name\":\"eth0\",\"ipv4\":{\"address\":\"10.166.0.1/24\",\"gateway\":\"10.166.0.254\"},\"dns\":{\"servers\":[\"8.8.8.8\"]}}}",
+			Net:     "{\"hostInterface\":\"eth0\",\"bridgeInterface\":\"br0\",\"interface\":{\"name\":\"eth0\",\"ipv4\":{\"address\":\"10.166.0.1/24\",\"gateway\":\"10.166.0.254\"},\"dns\":{\"servers\":[\"8.8.8.8\"]}}}",
 			Image:   "{\"rootfsType\":\"overlay\",\"imageLayer\":[\"/image/path\"],\"upperDir\":\"/upper/path\",\"workDir\":\"/work/path\"}",
 		},
 	}
@@ -757,7 +760,7 @@ func TestLoadConfigFile_Success(t *testing.T) {
 		},
 		Annotations: AnnotationObject{
 			Version: "0.1.0",
-			Net:     "{\"defaultInterface\":\"eth0\",\"interface\":{\"name\":\"eth0\",\"ipv4\":{\"address\":\"10.166.0.1/24\",\"gateway\":\"10.166.0.254\"},\"dns\":{\"servers\":[\"8.8.8.8\"]}}}",
+			Net:     "{\"hostInterface\":\"eth0\",\"bridgeInterface\":\"br0\",\"interface\":{\"name\":\"eth0\",\"ipv4\":{\"address\":\"10.166.0.1/24\",\"gateway\":\"10.166.0.254\"},\"dns\":{\"servers\":[\"8.8.8.8\"]}}}",
 			Image:   "{\"rootfsType\":\"overlay\",\"imageLayer\":[\"/image/path\"],\"upperDir\":\"/upper/path\",\"workDir\":\"/work/path\"}",
 		},
 	}

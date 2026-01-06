@@ -45,12 +45,14 @@ func TestContainerCreator_Create_Success(t *testing.T) {
 	mockSpecLoader := &mockFileSpecLoader{}
 	mockFifoCreator := &mockCotainerFifoHandler{}
 	mockProcessExecutor := &mockContainerInitExecutor{}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	mockContainerCreator := ContainerCreator{
-		specLoader:              mockSpecLoader,
-		fifoCreator:             mockFifoCreator,
-		processExecutor:         mockProcessExecutor,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockSpecLoader,
+		fifoCreator:              mockFifoCreator,
+		processExecutor:          mockProcessExecutor,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==
@@ -78,12 +80,14 @@ func TestContainerCreator_Create_LoadFileError(t *testing.T) {
 	}
 	mockFifoCreator := &mockCotainerFifoHandler{}
 	mockProcessExecutor := &mockContainerInitExecutor{}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	mockContainerCreator := ContainerCreator{
-		specLoader:              mockSpecLoader,
-		fifoCreator:             mockFifoCreator,
-		processExecutor:         mockProcessExecutor,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockSpecLoader,
+		fifoCreator:              mockFifoCreator,
+		processExecutor:          mockProcessExecutor,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==
@@ -102,12 +106,14 @@ func TestContainerCreator_Create_CreateFifoError(t *testing.T) {
 		createFifoErr: errors.New("createFifo() failed"),
 	}
 	mockProcessExecutor := &mockContainerInitExecutor{}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	mockContainerCreator := ContainerCreator{
-		specLoader:              mockSpecLoader,
-		fifoCreator:             mockFifoCreator,
-		processExecutor:         mockProcessExecutor,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockSpecLoader,
+		fifoCreator:              mockFifoCreator,
+		processExecutor:          mockProcessExecutor,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==
@@ -126,12 +132,14 @@ func TestContainerCreator_Create_ExecuteInitError(t *testing.T) {
 	mockProcessExecutor := &mockContainerInitExecutor{
 		executeInitErr: errors.New("executeInit() failed"),
 	}
+	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	mockContainerCreator := ContainerCreator{
-		specLoader:              mockSpecLoader,
-		fifoCreator:             mockFifoCreator,
-		processExecutor:         mockProcessExecutor,
-		containerCgroupPreparer: mockeContainerCgroupController,
+		specLoader:               mockSpecLoader,
+		fifoCreator:              mockFifoCreator,
+		processExecutor:          mockProcessExecutor,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
 	}
 
 	// == act ==
@@ -140,6 +148,58 @@ func TestContainerCreator_Create_ExecuteInitError(t *testing.T) {
 	// == assert ==
 	assert.NotNil(t, err)
 	assert.Equal(t, errors.New("executeInit() failed"), err)
+}
+
+func TestContainerCreator_Create_CgroupPrepareError(t *testing.T) {
+	// == arrange ==
+	opts := buildCreateOption(t)
+	mockSpecLoader := &mockFileSpecLoader{}
+	mockFifoCreator := &mockCotainerFifoHandler{}
+	mockProcessExecutor := &mockContainerInitExecutor{}
+	mockContainerNetworkController := &mockContainerNetworkController{}
+	mockeContainerCgroupController := &mockeContainerCgroupController{
+		prepareErr: errors.New("prepare() failed"),
+	}
+	mockContainerCreator := ContainerCreator{
+		specLoader:               mockSpecLoader,
+		fifoCreator:              mockFifoCreator,
+		processExecutor:          mockProcessExecutor,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
+	}
+
+	// == act ==
+	err := mockContainerCreator.Create(opts)
+
+	// == assert ==
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("prepare() failed"), err)
+}
+
+func TestContainerCreator_Create_NetworkPrepareError(t *testing.T) {
+	// == arrange ==
+	opts := buildCreateOption(t)
+	mockSpecLoader := &mockFileSpecLoader{}
+	mockFifoCreator := &mockCotainerFifoHandler{}
+	mockProcessExecutor := &mockContainerInitExecutor{}
+	mockContainerNetworkController := &mockContainerNetworkController{
+		prepareErr: errors.New("prepare() failed"),
+	}
+	mockeContainerCgroupController := &mockeContainerCgroupController{}
+	mockContainerCreator := ContainerCreator{
+		specLoader:               mockSpecLoader,
+		fifoCreator:              mockFifoCreator,
+		processExecutor:          mockProcessExecutor,
+		containerNetworkPreparer: mockContainerNetworkController,
+		containerCgroupPreparer:  mockeContainerCgroupController,
+	}
+
+	// == act ==
+	err := mockContainerCreator.Create(opts)
+
+	// == assert ==
+	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("prepare() failed"), err)
 }
 
 func TestContainerInitExecutor_ExecuteInit_Success(t *testing.T) {
@@ -161,12 +221,9 @@ func TestContainerInitExecutor_ExecuteInit_Success(t *testing.T) {
 	pid, err := mockContainerInitExecutor.executeInit(containerId, mockSpec, fifo)
 
 	// == assert ==
-	// Command() is called
-	assert.True(t, mockExecCommandFactory.commandCallFlag)
-
 	// command args is "init <container-id> <fifo> <entrypoint>"
 	expectArgs := []string{"init", "12345", "exec.fifo", "/bin/sh"}
-	assert.Equal(t, mockExecCommandFactory.commandArgs, expectArgs)
+	assert.Equal(t, mockExecCommandFactory.commandCalls[0].args, expectArgs)
 
 	// SetSysProcAttr() is called
 	assert.True(t, mockExecCmd.setSysProcAttrCallFlag)

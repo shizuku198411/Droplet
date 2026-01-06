@@ -9,16 +9,20 @@ import (
 
 type mockExecCommandFactory struct {
 	// Command()
-	commandCallFlag bool
-	commandName     string
-	commandArgs     []string
+	commandCalls    []commandParameter
 	commandExecutor commandExecutor
 }
 
+type commandParameter struct {
+	name string
+	args []string
+}
+
 func (m *mockExecCommandFactory) Command(name string, args ...string) commandExecutor {
-	m.commandCallFlag = true
-	m.commandName = name
-	m.commandArgs = args
+	m.commandCalls = append(m.commandCalls, commandParameter{
+		name: name,
+		args: args,
+	})
 	return m.commandExecutor
 }
 
@@ -30,6 +34,10 @@ type mockExecCmd struct {
 	// Wait()
 	waitCallFlag bool
 	waitErr      error
+
+	// Run()
+	runCallFlag bool
+	runErr      error
 
 	// Pid()
 	pidCallFlag bool
@@ -60,6 +68,11 @@ func (m *mockExecCmd) Start() error {
 func (m *mockExecCmd) Wait() error {
 	m.waitCallFlag = true
 	return m.waitErr
+}
+
+func (m *mockExecCmd) Run() error {
+	m.runCallFlag = true
+	return m.runErr
 }
 
 func (m *mockExecCmd) Pid() int {

@@ -82,8 +82,9 @@ type InterfaceObject struct {
 }
 
 type NetConfigObject struct {
-	DefaultInterface string          `json:"defaultInterface"`
-	Interface        InterfaceObject `json:"interface"`
+	HostInterface   string          `json:"hostInterface"`
+	BridgeInterface string          `json:"bridgeInterface"`
+	Interface       InterfaceObject `json:"interface"`
 }
 
 // Annotation: io.raind.image.config

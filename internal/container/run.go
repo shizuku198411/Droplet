@@ -15,11 +15,12 @@ import (
 // process to exit.
 func NewContainerRun() *ContainerRun {
 	return &ContainerRun{
-		specLoader:              newFileSpecLoader(),
-		fifoCreator:             newContainerFifoHandler(),
-		commandFactory:          newCommandFactory(),
-		containerStart:          NewContainerStart(),
-		containerCgroupPreparer: newContainerCgroupController(),
+		specLoader:               newFileSpecLoader(),
+		fifoCreator:              newContainerFifoHandler(),
+		commandFactory:           newCommandFactory(),
+		containerStart:           NewContainerStart(),
+		containerCgroupPreparer:  newContainerCgroupController(),
+		containerNetworkPreparer: newContainerNetworkController(),
 	}
 }
 
@@ -36,11 +37,12 @@ func NewContainerRun() *ContainerRun {
 // This differs from the `create` + `start` workflow in that the caller
 // remains attached to the container process and blocks until it terminates.
 type ContainerRun struct {
-	specLoader              specLoader
-	fifoCreator             fifoCreator
-	commandFactory          commandFactory
-	containerStart          *ContainerStart
-	containerCgroupPreparer containerCgroupPreparer
+	specLoader               specLoader
+	fifoCreator              fifoCreator
+	commandFactory           commandFactory
+	containerStart           *ContainerStart
+	containerCgroupPreparer  containerCgroupPreparer
+	containerNetworkPreparer containerNetworkPreparer
 }
 
 // Run executes the container run pipeline for the provided container ID.
@@ -99,6 +101,11 @@ func (c *ContainerRun) Run(opt RunOption) error {
 
 	// cgroup setup
 	if err := c.containerCgroupPreparer.prepare(opt.ContainerId, spec, cmd.Pid()); err != nil {
+		return err
+	}
+
+	// network setup
+	if err := c.containerNetworkPreparer.prepare(opt.ContainerId, cmd.Pid(), spec.Annotations); err != nil {
 		return err
 	}
 

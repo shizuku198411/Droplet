@@ -12,10 +12,11 @@ import (
 // This acts as the main entry point for the container creation workflow.
 func NewContainerCreator() *ContainerCreator {
 	return &ContainerCreator{
-		specLoader:              newFileSpecLoader(),
-		fifoCreator:             newContainerFifoHandler(),
-		processExecutor:         newContainerInitExecutor(),
-		containerCgroupPreparer: newContainerCgroupController(),
+		specLoader:               newFileSpecLoader(),
+		fifoCreator:              newContainerFifoHandler(),
+		processExecutor:          newContainerInitExecutor(),
+		containerNetworkPreparer: newContainerNetworkController(),
+		containerCgroupPreparer:  newContainerCgroupController(),
 	}
 }
 
@@ -37,10 +38,11 @@ func newContainerInitExecutor() *containerInitExecutor {
 //
 // Each step is delegated to an interface to allow testing and substitution.
 type ContainerCreator struct {
-	specLoader              specLoader
-	fifoCreator             fifoCreator
-	processExecutor         processExecutor
-	containerCgroupPreparer containerCgroupPreparer
+	specLoader               specLoader
+	fifoCreator              fifoCreator
+	processExecutor          processExecutor
+	containerNetworkPreparer containerNetworkPreparer
+	containerCgroupPreparer  containerCgroupPreparer
 }
 
 // Create executes the container creation pipeline for the given container ID.
@@ -75,6 +77,11 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 
 	// cgroup setup
 	if err := c.containerCgroupPreparer.prepare(opt.ContainerId, spec, initPid); err != nil {
+		return err
+	}
+
+	// network setup
+	if err := c.containerNetworkPreparer.prepare(opt.ContainerId, initPid, spec.Annotations); err != nil {
 		return err
 	}
 
