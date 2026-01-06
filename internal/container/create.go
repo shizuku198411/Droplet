@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"droplet/internal/spec"
+	"droplet/internal/status"
 )
 
 // NewContainerCreator constructs a ContainerCreator with the default
@@ -17,6 +18,7 @@ func NewContainerCreator() *ContainerCreator {
 		processExecutor:          newContainerInitExecutor(),
 		containerNetworkPreparer: newContainerNetworkController(),
 		containerCgroupPreparer:  newContainerCgroupController(),
+		containerStatusManager:   status.NewStatusHandler(),
 	}
 }
 
@@ -43,11 +45,25 @@ type ContainerCreator struct {
 	processExecutor          processExecutor
 	containerNetworkPreparer containerNetworkPreparer
 	containerCgroupPreparer  containerCgroupPreparer
+	containerStatusManager   status.ContainerStatusManager
 }
 
 // Create executes the container creation pipeline for the given container ID.
 // This method performs no low-level work itself — it coordinates collaborators.
 func (c *ContainerCreator) Create(opt CreateOption) error {
+	// create state.json
+	//   status = creating
+	//   pid = 0
+	if err := c.containerStatusManager.CreateStatusFile(
+		containerDir(opt.ContainerId),
+		opt.ContainerId,
+		0,
+		status.CREATING,
+		containerDir(opt.ContainerId),
+	); err != nil {
+		return err
+	}
+
 	// load config.json
 	spec, err := c.specLoader.loadFile(opt.ContainerId)
 	if err != nil {
@@ -82,6 +98,18 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 
 	// network setup
 	if err := c.containerNetworkPreparer.prepare(opt.ContainerId, initPid, spec.Annotations); err != nil {
+		return err
+	}
+
+	// update state.json
+	//   status = created
+	//   pid    = init pid
+	if err := c.containerStatusManager.UpdateStatus(
+		containerDir(opt.ContainerId),
+		opt.ContainerId,
+		status.CREATED,
+		initPid,
+	); err != nil {
 		return err
 	}
 

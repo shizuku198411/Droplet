@@ -250,8 +250,8 @@ func buildAnnotationSpec(opts ConfigOptions) AnnotationObject {
 }
 
 func buildSpec(opts ConfigOptions) Spec {
-	// OCI Version: 1.2.0
-	ociVersion := "1.2.0"
+	// OCI Version: 1.3.0
+	ociVersion := "1.3.0"
 
 	// root path
 	root := buildRootSpec(opts)
