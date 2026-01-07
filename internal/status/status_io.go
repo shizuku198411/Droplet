@@ -2,12 +2,14 @@ package status
 
 import (
 	"droplet/internal/oci"
+	"droplet/internal/spec"
 	"droplet/internal/utils"
+	"os"
 	"syscall"
 )
 
 type ContainerStatusManager interface {
-	CreateStatusFile(containerId string, pid int, status ContainerStatus, bundle string) error
+	CreateStatusFile(containerId string, pid int, status ContainerStatus, rootfs string, bundle string, annotation spec.AnnotationObject) error
 	UpdateStatus(containerId string, status ContainerStatus, pid int) error
 	GetPidFromId(containerId string) (int, error)
 	GetStatusFromId(containerId string) (ContainerStatus, error)
@@ -23,14 +25,17 @@ type StatusHandler struct {
 	processManager ProcessManager
 }
 
-func (h *StatusHandler) CreateStatusFile(containerId string, pid int, status ContainerStatus, bundle string) error {
+func (h *StatusHandler) CreateStatusFile(containerId string, pid int, status ContainerStatus,
+	rootfs string, bundle string, annotation spec.AnnotationObject) error {
 	stateFilePath := utils.ContainerStatePath(containerId)
 	statusObject := StatusObject{
 		OciVersion: oci.OCIVersion,
 		Id:         containerId,
 		Status:     status.String(),
 		Pid:        pid,
+		Rootfs:     rootfs,
 		Bundle:     bundle,
+		Annotaion:  annotation,
 	}
 
 	if err := utils.WriteJsonToFile(stateFilePath, statusObject); err != nil {
@@ -38,6 +43,32 @@ func (h *StatusHandler) CreateStatusFile(containerId string, pid int, status Con
 	}
 
 	return nil
+}
+
+func (h *StatusHandler) ReadStatusFile(containerId string) (string, error) {
+	stateFilePath := utils.ContainerStatePath(containerId)
+	// load status file
+	var statusObject StatusObject
+	if err := utils.ReadJsonFile(stateFilePath, &statusObject); err != nil {
+		return "", err
+	}
+	pid := statusObject.Pid
+	currentStatus, parseErr := ParseContainerStatus(statusObject.Status)
+	if parseErr != nil {
+		return "", parseErr
+	}
+
+	// recompute status
+	if err := h.recomputeStatus(containerId, pid, currentStatus); err != nil {
+		return "", err
+	}
+
+	// read file
+	data, err := os.ReadFile(stateFilePath)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func (h *StatusHandler) UpdateStatus(containerId string, status ContainerStatus, pid int) error {

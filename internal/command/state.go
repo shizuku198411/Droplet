@@ -1,6 +1,7 @@
 package command
 
 import (
+	"droplet/internal/status"
 	"fmt"
 	"github.com/urfave/cli/v2"
 )
@@ -10,18 +11,21 @@ func commandState() *cli.Command {
 		Name:      "state",
 		Usage:     "query state a container",
 		ArgsUsage: "<container-id>",
-		Action: func(ctx *cli.Context) error {
-			// validate args
-			if ctx.NArg() != 1 {
-				return fmt.Errorf("usage: droplet state <container-id>")
-			}
-
-			// get args
-			container_id := ctx.Args().Get(0)
-
-			fmt.Println("state container: " + container_id)
-
-			return nil
-		},
+		Action:    runState,
 	}
+}
+
+func runState(ctx *cli.Context) error {
+	// retrieve container id
+	containerId := ctx.Args().Get(0)
+
+	containerStatusHandler := status.NewStatusHandler()
+	statusInfo, err := containerStatusHandler.ReadStatusFile(containerId)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(statusInfo)
+
+	return nil
 }

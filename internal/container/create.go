@@ -52,6 +52,12 @@ type ContainerCreator struct {
 // Create executes the container creation pipeline for the given container ID.
 // This method performs no low-level work itself — it coordinates collaborators.
 func (c *ContainerCreator) Create(opt CreateOption) error {
+	// load config.json
+	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	if err != nil {
+		return err
+	}
+
 	// create state.json
 	//   status = creating
 	//   pid = 0
@@ -59,14 +65,10 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 		opt.ContainerId,
 		0,
 		status.CREATING,
+		spec.Root.Path,
 		utils.ContainerDir(opt.ContainerId),
+		spec.Annotations,
 	); err != nil {
-		return err
-	}
-
-	// load config.json
-	spec, err := c.specLoader.loadFile(opt.ContainerId)
-	if err != nil {
 		return err
 	}
 

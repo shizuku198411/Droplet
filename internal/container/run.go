@@ -58,6 +58,12 @@ type ContainerRun struct {
 // returns the exit status of the process. Any failure during startup or
 // synchronization results in an error being returned.
 func (c *ContainerRun) Run(opt RunOption) error {
+	// 1. load config.json
+	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	if err != nil {
+		return err
+	}
+
 	// create state.json
 	//   status = creating
 	//   pid = 0
@@ -65,14 +71,10 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		opt.ContainerId,
 		0,
 		status.CREATING,
+		spec.Root.Path,
 		utils.ContainerDir(opt.ContainerId),
+		spec.Annotations,
 	); err != nil {
-		return err
-	}
-
-	// 1. load config.json
-	spec, err := c.specLoader.loadFile(opt.ContainerId)
-	if err != nil {
 		return err
 	}
 

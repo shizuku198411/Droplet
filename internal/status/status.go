@@ -1,16 +1,19 @@
 package status
 
 import (
+	"droplet/internal/spec"
 	"fmt"
 	"strings"
 )
 
 type StatusObject struct {
-	OciVersion string `json:"ociVersion"`
-	Id         string `json:"id"`
-	Status     string `json:"status"`
-	Pid        int    `json:"pid"`
-	Bundle     string `json:"bundle"`
+	OciVersion string                `json:"ociVersion"`
+	Id         string                `json:"id"`
+	Status     string                `json:"status"`
+	Pid        int                   `json:"pid"`
+	Rootfs     string                `json:"rootfs"`
+	Bundle     string                `json:"bundle"`
+	Annotaion  spec.AnnotationObject `json:"annotations"`
 }
 
 // container status

@@ -1,6 +1,9 @@
 package container
 
-import "droplet/internal/status"
+import (
+	"droplet/internal/spec"
+	"droplet/internal/status"
+)
 
 type mockStatusHandler struct {
 	// CreateStatusFile()
@@ -8,7 +11,9 @@ type mockStatusHandler struct {
 	createStatusFileContainerId string
 	createStatusFilePid         int
 	createStatusFileStatus      status.ContainerStatus
+	createStatusRootfs          string
 	createStatusFileBundle      string
+	createStatusAnnotation      spec.AnnotationObject
 	createStatusFileErr         error
 
 	// UpdateStatus()
@@ -31,7 +36,7 @@ type mockStatusHandler struct {
 	getStatusFromIdErr         error
 }
 
-func (m *mockStatusHandler) CreateStatusFile(containerId string, pid int, status status.ContainerStatus, bundle string) error {
+func (m *mockStatusHandler) CreateStatusFile(containerId string, pid int, status status.ContainerStatus, rootfs string, bundle string, annotation spec.AnnotationObject) error {
 	m.createStatusFileCallFlag = true
 	m.createStatusFileContainerId = containerId
 	m.createStatusFilePid = pid
