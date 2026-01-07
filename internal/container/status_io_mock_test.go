@@ -16,6 +16,17 @@ type mockStatusHandler struct {
 	createStatusAnnotation      spec.AnnotationObject
 	createStatusFileErr         error
 
+	// RemoveStatusFile()
+	removeStatusFileCallFlag    bool
+	removeStatusFileContainerId string
+	removeStatusFileErr         error
+
+	// ReadStatusFile()
+	readStatusFileCallFlag bool
+	readStatusContainerId  string
+	readStatusDataStr      string
+	readStatusErr          error
+
 	// UpdateStatus()
 	updateStatusCallFlag    bool
 	updateStatusContainerId string
@@ -43,6 +54,18 @@ func (m *mockStatusHandler) CreateStatusFile(containerId string, pid int, status
 	m.createStatusFileStatus = status
 	m.createStatusFileBundle = bundle
 	return m.createStatusFileErr
+}
+
+func (m *mockStatusHandler) RemoveStatusFile(containerId string) error {
+	m.removeStatusFileCallFlag = true
+	m.removeStatusFileContainerId = containerId
+	return m.removeStatusFileErr
+}
+
+func (m *mockStatusHandler) ReadStatusFile(containerId string) (string, error) {
+	m.readStatusFileCallFlag = true
+	m.readStatusContainerId = containerId
+	return m.readStatusDataStr, m.readStatusErr
 }
 
 func (m *mockStatusHandler) UpdateStatus(containerId string, status status.ContainerStatus, pid int) error {

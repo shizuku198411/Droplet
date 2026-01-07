@@ -37,3 +37,8 @@ type KillOption struct {
 	ContainerId string
 	Signal      string
 }
+
+// delete options
+type DeleteOption struct {
+	ContainerId string
+}

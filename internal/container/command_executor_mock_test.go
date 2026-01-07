@@ -1,6 +1,7 @@
 package container
 
 import (
+	"droplet/internal/utils"
 	"io"
 	"os"
 	"syscall"
@@ -10,7 +11,7 @@ import (
 type mockExecCommandFactory struct {
 	// Command()
 	commandCalls    []commandParameter
-	commandExecutor commandExecutor
+	commandExecutor utils.CommandExecutor
 }
 
 type commandParameter struct {
@@ -18,7 +19,7 @@ type commandParameter struct {
 	args []string
 }
 
-func (m *mockExecCommandFactory) Command(name string, args ...string) commandExecutor {
+func (m *mockExecCommandFactory) Command(name string, args ...string) utils.CommandExecutor {
 	m.commandCalls = append(m.commandCalls, commandParameter{
 		name: name,
 		args: args,
@@ -42,6 +43,10 @@ type mockExecCmd struct {
 	// Pid()
 	pidCallFlag bool
 	pidPid      int
+
+	// SetEnv()
+	setEnvCallFlag bool
+	setEnvValue    []string
 
 	// SetStdout()
 	setStdoutCallFlag bool
@@ -78,6 +83,11 @@ func (m *mockExecCmd) Run() error {
 func (m *mockExecCmd) Pid() int {
 	m.pidCallFlag = true
 	return m.pidPid
+}
+
+func (m *mockExecCmd) SetEnv(envv []string) {
+	m.setEnvCallFlag = true
+	m.setEnvValue = envv
 }
 
 func (m *mockExecCmd) SetStdout(w io.Writer) {
@@ -176,6 +186,11 @@ type mockKernelSyscall struct {
 	createName     string
 	createFile     *os.File
 	createErr      error
+
+	// Remove()
+	removeCallFlag bool
+	removeName     string
+	removeErr      error
 
 	// IsNotExist()
 	isNotExistCallFlag bool
@@ -313,6 +328,12 @@ func (m *mockKernelSyscall) Create(name string) (*os.File, error) {
 	m.createCallFlag = true
 	m.createName = name
 	return m.createFile, m.createErr
+}
+
+func (m *mockKernelSyscall) Remove(name string) error {
+	m.removeCallFlag = true
+	m.removeName = name
+	return m.removeErr
 }
 
 func (m *mockKernelSyscall) IsNotExist(err error) bool {

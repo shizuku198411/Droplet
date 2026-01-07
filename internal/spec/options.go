@@ -28,6 +28,22 @@ type ImageOption struct {
 	WorkDir    string
 }
 
+type HookOption struct {
+	Path    string
+	Args    []string
+	Env     []string
+	Timeout *int
+}
+
+type HookLifecycleOption struct {
+	Prestart        []HookOption
+	CreateRuntime   []HookOption
+	CreateContainer []HookOption
+	StartContainer  []HookOption
+	Poststart       []HookOption
+	Poststop        []HookOption
+}
+
 type ConfigOptions struct {
 	Rootfs    string
 	Mounts    []MountOption
@@ -36,4 +52,5 @@ type ConfigOptions struct {
 	Hostname  string
 	Net       NetOption
 	Image     ImageOption
+	Hooks     HookLifecycleOption
 }

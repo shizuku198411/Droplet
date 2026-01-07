@@ -1,4 +1,4 @@
-package container
+package utils
 
 import (
 	"io"
@@ -7,8 +7,8 @@ import (
 	"syscall"
 )
 
-func newCommandFactory() *execCommandFactory {
-	return &execCommandFactory{}
+func NewCommandFactory() *ExecCommandFactory {
+	return &ExecCommandFactory{}
 }
 
 // commandFactory creates commandExecutor instances.
@@ -16,31 +16,32 @@ func newCommandFactory() *execCommandFactory {
 // The factory abstracts process creation so that callers do not depend
 // directly on exec.Command. This makes the behavior testable by replacing
 // the factory with a mock implementation.
-type commandFactory interface {
-	Command(name string, args ...string) commandExecutor
+type CommandFactory interface {
+	Command(name string, args ...string) CommandExecutor
 }
 
 // execCommandFactory is the default implementation of commandFactory.
 //
 // It creates commandExecutor values backed by *exec.Cmd and launches
 // real OS processes.
-type execCommandFactory struct{}
+type ExecCommandFactory struct{}
 
 // Command returns a commandExecutor that executes the given command
 // using exec.Cmd.
-func (e *execCommandFactory) Command(name string, args ...string) commandExecutor {
-	return &execCmd{cmd: exec.Command(name, args...)}
+func (e *ExecCommandFactory) Command(name string, args ...string) CommandExecutor {
+	return &ExecCmd{cmd: exec.Command(name, args...)}
 }
 
 // commandExecutor represents a process that can be started.
 //
 // It provides a minimal surface over exec.Cmd so that command execution
 // can be substituted or mocked in tests.
-type commandExecutor interface {
+type CommandExecutor interface {
 	Start() error
 	Wait() error
 	Run() error
 	Pid() int
+	SetEnv(envv []string)
 	SetStdout(w io.Writer)
 	SetStderr(w io.Writer)
 	SetStdin(r io.Reader)
@@ -50,52 +51,56 @@ type commandExecutor interface {
 // execCmd is the concrete commandExecutor backed by exec.Cmd.
 //
 // It delegates all operations to the underlying exec.Cmd instance.
-type execCmd struct {
+type ExecCmd struct {
 	cmd *exec.Cmd
 }
 
 // Start starts the underlying process.
 //
 // It mirrors (*exec.Cmd).Start.
-func (e *execCmd) Start() error {
+func (e *ExecCmd) Start() error {
 	return e.cmd.Start()
 }
 
-func (e *execCmd) Wait() error {
+func (e *ExecCmd) Wait() error {
 	return e.cmd.Wait()
 }
 
-func (e *execCmd) Run() error {
+func (e *ExecCmd) Run() error {
 	return e.cmd.Run()
 }
 
 // Pid returns the PID of the started process.
 //
 // If the process has not been started, -1 is returned.
-func (e *execCmd) Pid() int {
+func (e *ExecCmd) Pid() int {
 	if e.cmd.Process == nil {
 		return -1
 	}
 	return e.cmd.Process.Pid
 }
 
+func (e *ExecCmd) SetEnv(envv []string) {
+	e.cmd.Env = append(e.cmd.Env, envv...)
+}
+
 // SetStdout sets the stdout writer for the underlying command.
-func (e *execCmd) SetStdout(w io.Writer) {
+func (e *ExecCmd) SetStdout(w io.Writer) {
 	e.cmd.Stdout = w
 }
 
 // SetStderr sets the stderr writer for the underlying command.
-func (e *execCmd) SetStderr(w io.Writer) {
+func (e *ExecCmd) SetStderr(w io.Writer) {
 	e.cmd.Stderr = w
 }
 
 // SetStdin sets the standard input stream for the underlying command.
-func (e *execCmd) SetStdin(r io.Reader) {
+func (e *ExecCmd) SetStdin(r io.Reader) {
 	e.cmd.Stdin = r
 }
 
 // SetSysProcAttr assigns the provided SysProcAttr to the underlying exec.Cmd.
-func (e *execCmd) SetSysProcAttr(attr *syscall.SysProcAttr) {
+func (e *ExecCmd) SetSysProcAttr(attr *syscall.SysProcAttr) {
 	e.cmd.SysProcAttr = attr
 }
 
@@ -104,11 +109,11 @@ func (e *execCmd) SetSysProcAttr(attr *syscall.SysProcAttr) {
 //
 // It is defined as an interface to allow syscall.Exec to be mocked
 // in tests and substituted by alternative implementations if needed.
-type syscallHandler interface {
+type SyscallHandler interface {
 	Exec(argv0 string, argv []string, envv []string) error
 }
 
-// containerEnvPrepareSyscallHandler abstracts the set of syscalls used during
+// KernelSyscallHandler abstracts the set of syscalls used during
 // container environment preparation inside the init process.
 //
 // This interface allows environment-setup logic (such as switching to the
@@ -116,7 +121,7 @@ type syscallHandler interface {
 // without invoking real kernel syscalls. Production code typically provides a
 // syscall-backed implementation, while unit tests may supply a mock or stub
 // implementation to validate control flow and error handling.
-type containerEnvPrepareSyscallHandler interface {
+type KernelSyscallHandler interface {
 	Setresgid(rgid int, egid int, sgid int) error
 	Setresuid(ruid int, euid int, suid int) error
 	Sethostname(p []byte) error
@@ -129,6 +134,7 @@ type containerEnvPrepareSyscallHandler interface {
 	Rmdir(path string) error
 	Stat(name string) (os.FileInfo, error)
 	Create(name string) (*os.File, error)
+	Remove(name string) error
 	IsNotExist(err error) bool
 	Symlink(oldname string, newname string) error
 	Lstat(name string) (os.FileInfo, error)
@@ -139,7 +145,7 @@ type containerEnvPrepareSyscallHandler interface {
 
 // newSyscallHandler returns a kernelSyscall that delegates to
 // syscall.Exec to replace the current process image.
-func newSyscallHandler() *kernelSyscall {
+func NewSyscallHandler() *kernelSyscall {
 	return &kernelSyscall{}
 }
 
@@ -259,6 +265,10 @@ func (k *kernelSyscall) Stat(name string) (os.FileInfo, error) {
 // an open(2) call with O_CREAT|O_TRUNC.
 func (k *kernelSyscall) Create(name string) (*os.File, error) {
 	return os.Create(name)
+}
+
+func (k *kernelSyscall) Remove(name string) error {
+	return os.Remove(name)
 }
 
 // IsNotExist reports whether an error indicates that a file or directory

@@ -8,7 +8,7 @@ import (
 
 func newContainerNetworkController() *containerNetworkController {
 	return &containerNetworkController{
-		commandFactory: &execCommandFactory{},
+		commandFactory: &utils.ExecCommandFactory{},
 	}
 }
 
@@ -17,7 +17,7 @@ type containerNetworkPreparer interface {
 }
 
 type containerNetworkController struct {
-	commandFactory commandFactory
+	commandFactory utils.CommandFactory
 }
 
 func (c *containerNetworkController) prepare(containerId string, pid int, annotation spec.AnnotationObject) error {

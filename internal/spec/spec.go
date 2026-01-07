@@ -55,14 +55,31 @@ type AnnotationObject struct {
 	Image   string `json:"io.raind.image.config"`
 }
 
+type HookObject struct {
+	Path    string   `json:"path"`
+	Args    []string `json:"args,omitempty"`
+	Env     []string `json:"env,omitempty"`
+	Timeout *int     `json:"timeout,omitempty"`
+}
+
+type HookLifecycleObject struct {
+	Prestart        []HookObject `json:"prestart,omitempty"` // DEPRECATED
+	CreateRuntime   []HookObject `json:"createRuntime,omitempty"`
+	CreateContainer []HookObject `json:"createContainer,omitempty"`
+	StartContainer  []HookObject `json:"startContainer,omitempty"`
+	Poststart       []HookObject `json:"poststart,omitempty"`
+	Poststop        []HookObject `json:"poststop,omitempty"`
+}
+
 type Spec struct {
-	OciVersion  string           `json:"ociVersion"`
-	Root        RootObject       `json:"root"`
-	Mounts      []MountObject    `json:"mounts"`
-	Process     ProcessObject    `json:"process"`
-	Hostname    string           `json:"hostname"`
-	LinuxSpec   LinuxSpecObject  `json:"linux"`
-	Annotations AnnotationObject `json:"annotations"`
+	OciVersion  string              `json:"ociVersion"`
+	Root        RootObject          `json:"root"`
+	Mounts      []MountObject       `json:"mounts"`
+	Process     ProcessObject       `json:"process"`
+	Hostname    string              `json:"hostname"`
+	LinuxSpec   LinuxSpecObject     `json:"linux"`
+	Hooks       HookLifecycleObject `json:"hooks,omitempty"`
+	Annotations AnnotationObject    `json:"annotations"`
 }
 
 // Annotation: io.raind.net.config

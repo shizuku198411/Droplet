@@ -10,6 +10,8 @@ import (
 
 type ContainerStatusManager interface {
 	CreateStatusFile(containerId string, pid int, status ContainerStatus, rootfs string, bundle string, annotation spec.AnnotationObject) error
+	RemoveStatusFile(containerId string) error
+	ReadStatusFile(containerId string) (string, error)
 	UpdateStatus(containerId string, status ContainerStatus, pid int) error
 	GetPidFromId(containerId string) (int, error)
 	GetStatusFromId(containerId string) (ContainerStatus, error)
@@ -17,12 +19,12 @@ type ContainerStatusManager interface {
 
 func NewStatusHandler() *StatusHandler {
 	return &StatusHandler{
-		processManager: NewProcessHandler(),
+		syscallHandler: utils.NewSyscallHandler(),
 	}
 }
 
 type StatusHandler struct {
-	processManager ProcessManager
+	syscallHandler utils.KernelSyscallHandler
 }
 
 func (h *StatusHandler) CreateStatusFile(containerId string, pid int, status ContainerStatus,
@@ -42,6 +44,14 @@ func (h *StatusHandler) CreateStatusFile(containerId string, pid int, status Con
 		return err
 	}
 
+	return nil
+}
+
+func (h *StatusHandler) RemoveStatusFile(containerId string) error {
+	stateFilePath := utils.ContainerStatePath(containerId)
+	if err := h.syscallHandler.Remove(stateFilePath); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -154,7 +164,7 @@ func (h *StatusHandler) pidAlive(pid int) (bool, error) {
 	}
 
 	// send 0 signal to process
-	err := h.processManager.Kill(pid, 0)
+	err := h.syscallHandler.Kill(pid, 0)
 	if err == nil {
 		// process exist
 		return true, nil
@@ -169,18 +179,4 @@ func (h *StatusHandler) pidAlive(pid int) (bool, error) {
 	}
 
 	return false, nil
-}
-
-type ProcessManager interface {
-	Kill(pid int, sig syscall.Signal) error
-}
-
-func NewProcessHandler() *ProcessHandler {
-	return &ProcessHandler{}
-}
-
-type ProcessHandler struct{}
-
-func (h *ProcessHandler) Kill(pid int, sig syscall.Signal) error {
-	return syscall.Kill(pid, sig)
 }

@@ -8,6 +8,8 @@ set -euo pipefail
 
 # == cgroup ==
 # parent cgroup name for runtime
+CONTAINER_ID=111111
+
 RUNTIME_ROOT="raind"
 
 CG_MNT="/sys/fs/cgroup"
@@ -31,6 +33,9 @@ fi
 SUBTREE_CTL="${PARENT}/cgroup.subtree_control"
 echo "[*] enable +cpu +memory on ${SUBTREE_CTL}"
 echo "+cpu +memory" > "${SUBTREE_CTL}"
+
+# 4) create container directory
+mkdir -p "${PARENT}/${CONTAINER_ID}"
 # ===========
 
 echo "[*] setup completed"

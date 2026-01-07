@@ -46,6 +46,8 @@ func commandSpec() *cli.Command {
 				Name:  "hostname",
 				Usage: "container hostname",
 			},
+
+			// network
 			&cli.StringFlag{
 				Name:  "host_if_name",
 				Usage: "host interface name",
@@ -75,6 +77,8 @@ func commandSpec() *cli.Command {
 				Name:  "dns",
 				Usage: "dns server",
 			},
+
+			// layer
 			&cli.StringSliceFlag{
 				Name:  "image_layer",
 				Usage: "image layer path",
@@ -87,6 +91,33 @@ func commandSpec() *cli.Command {
 				Name:  "work_dir",
 				Usage: "work directory",
 			},
+
+			// hook
+			&cli.StringSliceFlag{
+				Name:  "hook-prestart",
+				Usage: "prestart hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
+				Name:  "hook-create-runtime",
+				Usage: "createRuntime hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
+				Name:  "hook-create-container",
+				Usage: "createContainer hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
+				Name:  "hook-start-container",
+				Usage: "startContainer hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
+				Name:  "hook-poststart",
+				Usage: "poststart hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
+				Name:  "hook-poststop",
+				Usage: "poststop hook (format: path[,arg1,arg2,...])",
+			},
+
 			&cli.StringFlag{
 				Name:  "output",
 				Usage: "output path",
@@ -162,6 +193,33 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 	// work dir
 	workDir := ctx.String("work_dir")
 
+	// hook
+	// prestart
+	prestartHook, err := parseHookFlag(ctx.StringSlice("hook-prestart"))
+	if err != nil {
+		return spec.ConfigOptions{}, err
+	}
+	createRuntimeHook, err := parseHookFlag(ctx.StringSlice("hook-create-runtime"))
+	if err != nil {
+		return spec.ConfigOptions{}, err
+	}
+	createContainerHook, err := parseHookFlag(ctx.StringSlice("hook-create-container"))
+	if err != nil {
+		return spec.ConfigOptions{}, err
+	}
+	startContainerHook, err := parseHookFlag(ctx.StringSlice("hook-start-container"))
+	if err != nil {
+		return spec.ConfigOptions{}, err
+	}
+	poststartHook, err := parseHookFlag(ctx.StringSlice("hook-poststart"))
+	if err != nil {
+		return spec.ConfigOptions{}, err
+	}
+	poststopHook, err := parseHookFlag(ctx.StringSlice("hook-poststop"))
+	if err != nil {
+		return spec.ConfigOptions{}, err
+	}
+
 	return spec.ConfigOptions{
 		Rootfs: rootfs,
 		Mounts: mounts,
@@ -184,6 +242,14 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 			ImageLayer: imageLayer,
 			UpperDir:   upperDir,
 			WorkDir:    workDir,
+		},
+		Hooks: spec.HookLifecycleOption{
+			Prestart:        prestartHook,
+			CreateRuntime:   createRuntimeHook,
+			CreateContainer: createContainerHook,
+			StartContainer:  startContainerHook,
+			Poststart:       poststartHook,
+			Poststop:        poststopHook,
 		},
 	}, nil
 }
@@ -224,4 +290,26 @@ func parseCommandFlag(s string) ([]string, error) {
 		return []string{}, err
 	}
 	return args, nil
+}
+
+func parseHookFlag(value []string) ([]spec.HookOption, error) {
+	var hooks []spec.HookOption
+
+	for _, v := range value {
+		if v == "" {
+			continue
+		}
+		parts := strings.Split(v, ",")
+		if len(parts) == 0 || parts[0] == "" {
+			return []spec.HookOption{}, fmt.Errorf("invalid hook: %q (path is required)", v)
+		}
+		h := spec.HookOption{
+			Path: parts[0],
+		}
+		if len(parts) > 1 {
+			h.Args = parts[1:]
+		}
+		hooks = append(hooks, h)
+	}
+	return hooks, nil
 }
