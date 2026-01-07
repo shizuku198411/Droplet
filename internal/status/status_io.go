@@ -10,6 +10,7 @@ import (
 
 type ContainerStatusManager interface {
 	CreateStatusFile(containerId string, pid int, status ContainerStatus, rootfs string, bundle string, annotation spec.AnnotationObject) error
+	ReadStatusFile(containerId string) (string, error)
 	UpdateStatus(containerId string, status ContainerStatus, pid int) error
 	GetPidFromId(containerId string) (int, error)
 	GetStatusFromId(containerId string) (ContainerStatus, error)

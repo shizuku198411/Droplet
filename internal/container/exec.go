@@ -2,6 +2,7 @@ package container
 
 import (
 	"droplet/internal/status"
+	"droplet/internal/utils"
 	"fmt"
 	"os"
 	"slices"
@@ -10,13 +11,13 @@ import (
 
 func NewContainerExec() *ContainerExec {
 	return &ContainerExec{
-		commandFactory:         newCommandFactory(),
+		commandFactory:         utils.NewCommandFactory(),
 		containerStatusManager: status.NewStatusHandler(),
 	}
 }
 
 type ContainerExec struct {
-	commandFactory         commandFactory
+	commandFactory         utils.CommandFactory
 	containerStatusManager status.ContainerStatusManager
 }
 

@@ -30,6 +30,7 @@ func TestContainerRun_Run_InteractiveSuccess(t *testing.T) {
 	mockFileSpecLoader := &mockFileSpecLoader{
 		loadFileSpec: buildMockSpec(t),
 	}
+	mockHookController := &mockHookController{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
 	mockExecCmd := &mockExecCmd{}
 	mockExecCommandFactory := &mockExecCommandFactory{
@@ -37,8 +38,10 @@ func TestContainerRun_Run_InteractiveSuccess(t *testing.T) {
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
 	mockContainerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockFileSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
@@ -50,6 +53,7 @@ func TestContainerRun_Run_InteractiveSuccess(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -87,6 +91,7 @@ func TestContainerRun_Run_NonInteractiveSuccess(t *testing.T) {
 	mockFileSpecLoader := &mockFileSpecLoader{
 		loadFileSpec: buildMockSpec(t),
 	}
+	mockHookController := &mockHookController{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
 	mockExecCmd := &mockExecCmd{}
 	mockExecCommandFactory := &mockExecCommandFactory{
@@ -94,8 +99,10 @@ func TestContainerRun_Run_NonInteractiveSuccess(t *testing.T) {
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
 	mockContainerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockFileSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
@@ -107,6 +114,7 @@ func TestContainerRun_Run_NonInteractiveSuccess(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -136,6 +144,7 @@ func TestContainerRun_Run_LoadFileError(t *testing.T) {
 	mockFileSpecLoader := &mockFileSpecLoader{
 		loadFileErr: errors.New("loadFile() failed"),
 	}
+	mockHookController := &mockHookController{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
 	mockExecCmd := &mockExecCmd{}
 	mockExecCommandFactory := &mockExecCommandFactory{
@@ -143,8 +152,10 @@ func TestContainerRun_Run_LoadFileError(t *testing.T) {
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
 	mockContainerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockFileSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
@@ -156,6 +167,7 @@ func TestContainerRun_Run_LoadFileError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -175,6 +187,7 @@ func TestContainerRun_Run_CreateFifoError(t *testing.T) {
 	mockFileSpecLoader := &mockFileSpecLoader{
 		loadFileSpec: buildMockSpec(t),
 	}
+	mockHookController := &mockHookController{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{
 		createFifoErr: errors.New("createFifo() failed"),
 	}
@@ -184,8 +197,10 @@ func TestContainerRun_Run_CreateFifoError(t *testing.T) {
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
 	mockContainerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockFileSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
@@ -197,6 +212,7 @@ func TestContainerRun_Run_CreateFifoError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -216,6 +232,7 @@ func TestContainerRun_Run_CgroupPrepareError(t *testing.T) {
 	mockFileSpecLoader := &mockFileSpecLoader{
 		loadFileSpec: buildMockSpec(t),
 	}
+	mockHookController := &mockHookController{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
 	mockExecCmd := &mockExecCmd{}
 	mockExecCommandFactory := &mockExecCommandFactory{
@@ -223,8 +240,10 @@ func TestContainerRun_Run_CgroupPrepareError(t *testing.T) {
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
 	mockContainerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockFileSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{
@@ -238,6 +257,7 @@ func TestContainerRun_Run_CgroupPrepareError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -258,6 +278,7 @@ func TestContainerRun_Run_NetworkPrepareError(t *testing.T) {
 	mockFileSpecLoader := &mockFileSpecLoader{
 		loadFileSpec: buildMockSpec(t),
 	}
+	mockHookController := &mockHookController{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
 	mockExecCmd := &mockExecCmd{}
 	mockExecCommandFactory := &mockExecCommandFactory{
@@ -265,8 +286,10 @@ func TestContainerRun_Run_NetworkPrepareError(t *testing.T) {
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
 	mockContainerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockFileSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 	mockContainerNetworkController := &mockContainerNetworkController{
 		prepareErr: errors.New("prepare() failed"),
@@ -280,6 +303,7 @@ func TestContainerRun_Run_NetworkPrepareError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -300,6 +324,7 @@ func TestContainerRun_Run_StartError(t *testing.T) {
 	mockFileSpecLoader := &mockFileSpecLoader{
 		loadFileSpec: buildMockSpec(t),
 	}
+	mockHookController := &mockHookController{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
 	mockExecCmd := &mockExecCmd{
 		startErr: errors.New("Start() failed"),
@@ -309,8 +334,10 @@ func TestContainerRun_Run_StartError(t *testing.T) {
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
 	mockContainerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockFileSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
@@ -322,6 +349,7 @@ func TestContainerRun_Run_StartError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -341,6 +369,7 @@ func TestContainerRun_Run_WaitError(t *testing.T) {
 	mockFileSpecLoader := &mockFileSpecLoader{
 		loadFileSpec: buildMockSpec(t),
 	}
+	mockHookController := &mockHookController{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
 	mockExecCmd := &mockExecCmd{
 		waitErr: errors.New("Wait() failed"),
@@ -350,8 +379,10 @@ func TestContainerRun_Run_WaitError(t *testing.T) {
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
 	mockContainerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockFileSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
@@ -363,6 +394,7 @@ func TestContainerRun_Run_WaitError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==

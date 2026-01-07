@@ -10,7 +10,7 @@ import (
 
 func newContainerCgroupController() *containerCgroupController {
 	return &containerCgroupController{
-		syscallHandler: newSyscallHandler(),
+		syscallHandler: utils.NewSyscallHandler(),
 	}
 }
 
@@ -19,7 +19,7 @@ type containerCgroupPreparer interface {
 }
 
 type containerCgroupController struct {
-	syscallHandler containerEnvPrepareSyscallHandler
+	syscallHandler utils.KernelSyscallHandler
 }
 
 func (c *containerCgroupController) prepare(containerId string, spec spec.Spec, pid int) error {

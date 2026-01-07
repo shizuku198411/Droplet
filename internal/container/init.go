@@ -18,7 +18,7 @@ func NewContainerInit() *ContainerInit {
 		fifoReader:           newContainerFifoHandler(),
 		specLoader:           newFileSpecLoader(),
 		containerEnvPreparer: newRootContainerEnvPrepare(),
-		syscallHandler:       newSyscallHandler(),
+		syscallHandler:       utils.NewSyscallHandler(),
 	}
 }
 
@@ -31,7 +31,7 @@ func NewContainerInit() *ContainerInit {
 // execution environments.
 func newRootContainerEnvPrepare() *rootContainerEnvPreparer {
 	return &rootContainerEnvPreparer{
-		syscallHandler: newSyscallHandler(),
+		syscallHandler: utils.NewSyscallHandler(),
 	}
 }
 
@@ -45,7 +45,7 @@ type ContainerInit struct {
 	fifoReader           fifoReader
 	specLoader           specLoader
 	containerEnvPreparer containerEnvPreparer
-	syscallHandler       syscallHandler
+	syscallHandler       utils.SyscallHandler
 }
 
 // Execute performs the init sequence for the container.
@@ -106,7 +106,7 @@ type containerEnvPreparer interface {
 // capability adjustments, etc.) may be added to this implementation as
 // container initialization evolves.
 type rootContainerEnvPreparer struct {
-	syscallHandler containerEnvPrepareSyscallHandler
+	syscallHandler utils.KernelSyscallHandler
 }
 
 // prepare performs the container-environment initialization sequence based

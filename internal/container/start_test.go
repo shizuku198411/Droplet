@@ -29,11 +29,15 @@ func TestNewContainerStart_Success(t *testing.T) {
 func TestContainerStart_Success(t *testing.T) {
 	// == arrange ==
 	opts := buildStartOption(t)
+	mockSpecLoader := &mockFileSpecLoader{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
 	mockContainerStatusManager := &mockStatusHandler{}
+	mockHookController := &mockHookController{}
 	containerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 
 	// == act ==
@@ -55,13 +59,17 @@ func TestContainerStart_Success(t *testing.T) {
 func TestContainerStart_WriteFifoError(t *testing.T) {
 	// == arrange ==
 	opts := buildStartOption(t)
+	mockSpecLoader := &mockFileSpecLoader{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{
 		writeFifoErr: errors.New("writeFifo() failed"),
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
+	mockHookController := &mockHookController{}
 	containerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 
 	// == act ==
@@ -75,13 +83,17 @@ func TestContainerStart_WriteFifoError(t *testing.T) {
 func TestContainerStart_RemoveFifoError(t *testing.T) {
 	// == arrange ==
 	opts := buildStartOption(t)
+	mockSpecLoader := &mockFileSpecLoader{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{
 		removeFifoErr: errors.New("removeFifo() failed"),
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
+	mockHookController := &mockHookController{}
 	containerStart := &ContainerStart{
-		fifoHandler:            mockCotainerFifoHandler,
-		containerStatusManager: mockContainerStatusManager,
+		specLoader:              mockSpecLoader,
+		fifoHandler:             mockCotainerFifoHandler,
+		containerStatusManager:  mockContainerStatusManager,
+		containerHookController: mockHookController,
 	}
 
 	// == act ==
