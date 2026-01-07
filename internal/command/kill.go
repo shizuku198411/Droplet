@@ -1,7 +1,8 @@
 package command
 
 import (
-	"fmt"
+	"droplet/internal/container"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -10,22 +11,28 @@ func commandKill() *cli.Command {
 		Name:      "kill",
 		Usage:     "kill a container",
 		ArgsUsage: "<container-id> [signal]",
-		Action: func(ctx *cli.Context) error {
-			// validate args
-			if ctx.NArg() < 1 || ctx.NArg() > 2 {
-				return fmt.Errorf("usage: droplet kill <container-id> [signal]")
-			}
-
-			// get args
-			container_id := ctx.Args().Get(0)
-			signal := ctx.Args().Get(1)
-			if signal == "" {
-				signal = "SIGTERM"
-			}
-
-			fmt.Println("kill container: " + container_id + " by " + signal)
-
-			return nil
-		},
+		Action:    runKill,
 	}
+}
+
+func runKill(ctx *cli.Context) error {
+	// retrieve container id
+	containerId := ctx.Args().Get(0)
+	// retrieve signal
+	var signal string
+	if ctx.NArg() == 2 {
+		signal = ctx.Args().Get(1)
+	} else {
+		signal = "KILL"
+	}
+
+	containerKill := container.NewContainerKill()
+	err := containerKill.Kill(container.KillOption{
+		ContainerId: containerId,
+		Signal:      signal,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -31,3 +31,9 @@ type ExecOption struct {
 	Interactive bool
 	Entrypoint  []string
 }
+
+// kill options
+type KillOption struct {
+	ContainerId string
+	Signal      string
+}
