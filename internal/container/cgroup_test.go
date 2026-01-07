@@ -39,49 +39,6 @@ func TestContainerCgroupController_Prepare_Success(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestContainerCgroupController_CreateCgroupDirectory_Success(t *testing.T) {
-	// == arrange ==
-	containerId := "12345"
-	mockKernelSyscall := &mockKernelSyscall{}
-	containerCgroupPreparer := &containerCgroupController{
-		syscallHandler: mockKernelSyscall,
-	}
-
-	// == act ==
-	err := containerCgroupPreparer.createCgroupDirectory(containerId)
-
-	// == assert ==
-	// Mkdirall() is called
-	assert.True(t, mockKernelSyscall.mkdirAllCallFlag)
-	// Mkdirall() parameter:
-	//	 path=/sys/fs/cgroup/raind/<container-id>
-	//   mode=0755
-	assert.Equal(t, "/sys/fs/cgroup/raind/"+containerId, mockKernelSyscall.mkdirAllPath)
-	assert.Equal(t, fs.FileMode(0755), mockKernelSyscall.mkdirAllPerm)
-
-	// error is nil
-	assert.Nil(t, err)
-}
-
-func TestContainerCgroupController_CreateCgroupDirectory_MkdirAllError(t *testing.T) {
-	// == arrange ==
-	containerId := "12345"
-	mockKernelSyscall := &mockKernelSyscall{
-		mkdirAllErr: errors.New("MkdirAll() failed"),
-	}
-	containerCgroupPreparer := &containerCgroupController{
-		syscallHandler: mockKernelSyscall,
-	}
-
-	// == act ==
-	err := containerCgroupPreparer.createCgroupDirectory(containerId)
-
-	// == assert ==
-	// error is not nil
-	assert.NotNil(t, err)
-	assert.Equal(t, errors.New("MkdirAll() failed"), err)
-}
-
 func TestContainerCgroupController_SetMemoryLimit_Success(t *testing.T) {
 	// == arrange ==
 	spec := buildMockSpec(t)

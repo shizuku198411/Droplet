@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"droplet/internal/hook"
 	"droplet/internal/spec"
 	"droplet/internal/status"
 	"droplet/internal/utils"
@@ -20,6 +21,7 @@ func NewContainerCreator() *ContainerCreator {
 		containerNetworkPreparer: newContainerNetworkController(),
 		containerCgroupPreparer:  newContainerCgroupController(),
 		containerStatusManager:   status.NewStatusHandler(),
+		containerHookController:  hook.NewHookController(),
 	}
 }
 
@@ -27,7 +29,7 @@ func NewContainerCreator() *ContainerCreator {
 // This acts as the main entry point for spawning the container init process workflow.
 func newContainerInitExecutor() *containerInitExecutor {
 	return &containerInitExecutor{
-		commandFactory: &execCommandFactory{},
+		commandFactory: &utils.ExecCommandFactory{},
 	}
 }
 
@@ -47,6 +49,7 @@ type ContainerCreator struct {
 	containerNetworkPreparer containerNetworkPreparer
 	containerCgroupPreparer  containerCgroupPreparer
 	containerStatusManager   status.ContainerStatusManager
+	containerHookController  hook.ContainerHookController
 }
 
 // Create executes the container creation pipeline for the given container ID.
@@ -68,6 +71,14 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 		spec.Root.Path,
 		utils.ContainerDir(opt.ContainerId),
 		spec.Annotations,
+	); err != nil {
+		return err
+	}
+
+	// HOOK: createRuntime
+	if err := c.containerHookController.RunCreateRuntimeHooks(
+		opt.ContainerId,
+		spec.Hooks.CreateRuntime,
 	); err != nil {
 		return err
 	}
@@ -114,6 +125,14 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 		return err
 	}
 
+	// HOOK: createContainer
+	if err := c.containerHookController.RunCreateContainerHooks(
+		opt.ContainerId,
+		spec.Hooks.CreateContainer,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -130,7 +149,7 @@ type processExecutor interface {
 // It invokes this binary with the `init` subcommand and the FIFO path,
 // passing the spec's process args as the container entrypoint.
 type containerInitExecutor struct {
-	commandFactory commandFactory
+	commandFactory utils.CommandFactory
 }
 
 // executeInit starts the init process and returns its PID.

@@ -1,6 +1,7 @@
 package container
 
 import (
+	"droplet/internal/hook"
 	"droplet/internal/status"
 	"droplet/internal/utils"
 	"fmt"
@@ -19,11 +20,12 @@ func NewContainerRun() *ContainerRun {
 	return &ContainerRun{
 		specLoader:               newFileSpecLoader(),
 		fifoCreator:              newContainerFifoHandler(),
-		commandFactory:           newCommandFactory(),
+		commandFactory:           utils.NewCommandFactory(),
 		containerStart:           NewContainerStart(),
 		containerCgroupPreparer:  newContainerCgroupController(),
 		containerNetworkPreparer: newContainerNetworkController(),
 		containerStatusManager:   status.NewStatusHandler(),
+		containerHookController:  hook.NewHookController(),
 	}
 }
 
@@ -42,11 +44,12 @@ func NewContainerRun() *ContainerRun {
 type ContainerRun struct {
 	specLoader               specLoader
 	fifoCreator              fifoCreator
-	commandFactory           commandFactory
+	commandFactory           utils.CommandFactory
 	containerStart           *ContainerStart
 	containerCgroupPreparer  containerCgroupPreparer
 	containerNetworkPreparer containerNetworkPreparer
 	containerStatusManager   status.ContainerStatusManager
+	containerHookController  hook.ContainerHookController
 }
 
 // Run executes the container run pipeline for the provided container ID.
@@ -74,6 +77,14 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		spec.Root.Path,
 		utils.ContainerDir(opt.ContainerId),
 		spec.Annotations,
+	); err != nil {
+		return err
+	}
+
+	// HOOK: createRuntime
+	if err := c.containerHookController.RunCreateRuntimeHooks(
+		opt.ContainerId,
+		spec.Hooks.CreateRuntime,
 	); err != nil {
 		return err
 	}
@@ -139,6 +150,22 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
+	// HOOK: createContainer
+	if err := c.containerHookController.RunCreateContainerHooks(
+		opt.ContainerId,
+		spec.Hooks.CreateContainer,
+	); err != nil {
+		return err
+	}
+
+	// HOOK: startContainer
+	if err := c.containerHookController.RunStartContainerHooks(
+		opt.ContainerId,
+		spec.Hooks.StartContainer,
+	); err != nil {
+		return err
+	}
+
 	// 5. start container
 	if err := c.containerStart.Execute(
 		StartOption{ContainerId: opt.ContainerId},
@@ -152,6 +179,14 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		opt.ContainerId,
 		status.RUNNING,
 		-1, // no update
+	); err != nil {
+		return err
+	}
+
+	// HOOK: poststart
+	if err := c.containerHookController.RunPoststartHooks(
+		opt.ContainerId,
+		spec.Hooks.Poststart,
 	); err != nil {
 		return err
 	}

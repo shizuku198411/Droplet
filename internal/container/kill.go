@@ -2,18 +2,19 @@ package container
 
 import (
 	"droplet/internal/status"
+	"droplet/internal/utils"
 	"fmt"
 )
 
 func NewContainerKill() *ContainerKill {
 	return &ContainerKill{
-		syscallHandler:         newSyscallHandler(),
+		syscallHandler:         utils.NewSyscallHandler(),
 		containerStatusManager: status.NewStatusHandler(),
 	}
 }
 
 type ContainerKill struct {
-	syscallHandler         containerEnvPrepareSyscallHandler
+	syscallHandler         utils.KernelSyscallHandler
 	containerStatusManager status.ContainerStatusManager
 }
 

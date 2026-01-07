@@ -48,6 +48,7 @@ func TestContainerCreator_Create_Success(t *testing.T) {
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	mockContainerStatusManager := &mockStatusHandler{}
+	mockHookController := &mockHookController{}
 	mockContainerCreator := ContainerCreator{
 		specLoader:               mockSpecLoader,
 		fifoCreator:              mockFifoCreator,
@@ -55,6 +56,7 @@ func TestContainerCreator_Create_Success(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -85,6 +87,7 @@ func TestContainerCreator_Create_LoadFileError(t *testing.T) {
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	mockContainerStatusManager := &mockStatusHandler{}
+	mockHookController := &mockHookController{}
 	mockContainerCreator := ContainerCreator{
 		specLoader:               mockSpecLoader,
 		fifoCreator:              mockFifoCreator,
@@ -92,6 +95,7 @@ func TestContainerCreator_Create_LoadFileError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -113,6 +117,7 @@ func TestContainerCreator_Create_CreateFifoError(t *testing.T) {
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	mockContainerStatusManager := &mockStatusHandler{}
+	mockHookController := &mockHookController{}
 	mockContainerCreator := ContainerCreator{
 		specLoader:               mockSpecLoader,
 		fifoCreator:              mockFifoCreator,
@@ -120,6 +125,7 @@ func TestContainerCreator_Create_CreateFifoError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -141,6 +147,7 @@ func TestContainerCreator_Create_ExecuteInitError(t *testing.T) {
 	mockContainerNetworkController := &mockContainerNetworkController{}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	mockContainerStatusManager := &mockStatusHandler{}
+	mockHookController := &mockHookController{}
 	mockContainerCreator := ContainerCreator{
 		specLoader:               mockSpecLoader,
 		fifoCreator:              mockFifoCreator,
@@ -148,6 +155,7 @@ func TestContainerCreator_Create_ExecuteInitError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -169,6 +177,7 @@ func TestContainerCreator_Create_CgroupPrepareError(t *testing.T) {
 		prepareErr: errors.New("prepare() failed"),
 	}
 	mockContainerStatusManager := &mockStatusHandler{}
+	mockHookController := &mockHookController{}
 	mockContainerCreator := ContainerCreator{
 		specLoader:               mockSpecLoader,
 		fifoCreator:              mockFifoCreator,
@@ -176,6 +185,7 @@ func TestContainerCreator_Create_CgroupPrepareError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==
@@ -197,6 +207,7 @@ func TestContainerCreator_Create_NetworkPrepareError(t *testing.T) {
 	}
 	mockeContainerCgroupController := &mockeContainerCgroupController{}
 	mockContainerStatusManager := &mockStatusHandler{}
+	mockHookController := &mockHookController{}
 	mockContainerCreator := ContainerCreator{
 		specLoader:               mockSpecLoader,
 		fifoCreator:              mockFifoCreator,
@@ -204,6 +215,7 @@ func TestContainerCreator_Create_NetworkPrepareError(t *testing.T) {
 		containerNetworkPreparer: mockContainerNetworkController,
 		containerCgroupPreparer:  mockeContainerCgroupController,
 		containerStatusManager:   mockContainerStatusManager,
+		containerHookController:  mockHookController,
 	}
 
 	// == act ==

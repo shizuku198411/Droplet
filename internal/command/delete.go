@@ -1,7 +1,8 @@
 package command
 
 import (
-	"fmt"
+	"droplet/internal/container"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -10,18 +11,22 @@ func commandDelete() *cli.Command {
 		Name:      "delete",
 		Usage:     "delete a container",
 		ArgsUsage: "<container-id>",
-		Action: func(ctx *cli.Context) error {
-			// validate args
-			if ctx.NArg() != 1 {
-				return fmt.Errorf("usage: droplet delete <container-id>")
-			}
-
-			// get args
-			container_id := ctx.Args().Get(0)
-
-			fmt.Println("delete container: " + container_id)
-
-			return nil
-		},
+		Action:    runDelete,
 	}
+}
+
+func runDelete(ctx *cli.Context) error {
+	// retrieve container ID
+	containerId := ctx.Args().Get(0)
+
+	// delete container
+	containerDelete := container.NewContainerDelete()
+	err := containerDelete.Delete(container.DeleteOption{
+		ContainerId: containerId,
+	})
+	if err != nil {
+		return nil
+	}
+
+	return nil
 }

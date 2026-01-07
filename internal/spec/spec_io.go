@@ -240,6 +240,79 @@ func buildImageSpec(opts ConfigOptions) ImageConfigObject {
 	}
 }
 
+func buildHookSpec(opts ConfigOptions) HookLifecycleObject {
+	var hookLifeCycleObject HookLifecycleObject
+
+	// prestart
+	for _, h := range opts.Hooks.Prestart {
+		hookLifeCycleObject.Prestart = append(hookLifeCycleObject.Prestart,
+			HookObject{
+				Path:    h.Path,
+				Args:    h.Args,
+				Env:     h.Env,
+				Timeout: h.Timeout,
+			},
+		)
+	}
+	// crateRuntime
+	for _, h := range opts.Hooks.CreateRuntime {
+		hookLifeCycleObject.CreateRuntime = append(hookLifeCycleObject.CreateRuntime,
+			HookObject{
+				Path:    h.Path,
+				Args:    h.Args,
+				Env:     h.Env,
+				Timeout: h.Timeout,
+			},
+		)
+	}
+	// crateContainer
+	for _, h := range opts.Hooks.CreateContainer {
+		hookLifeCycleObject.CreateContainer = append(hookLifeCycleObject.CreateContainer,
+			HookObject{
+				Path:    h.Path,
+				Args:    h.Args,
+				Env:     h.Env,
+				Timeout: h.Timeout,
+			},
+		)
+	}
+	// startContainer
+	for _, h := range opts.Hooks.StartContainer {
+		hookLifeCycleObject.StartContainer = append(hookLifeCycleObject.StartContainer,
+			HookObject{
+				Path:    h.Path,
+				Args:    h.Args,
+				Env:     h.Env,
+				Timeout: h.Timeout,
+			},
+		)
+	}
+	// poststart
+	for _, h := range opts.Hooks.Poststart {
+		hookLifeCycleObject.Poststart = append(hookLifeCycleObject.Poststart,
+			HookObject{
+				Path:    h.Path,
+				Args:    h.Args,
+				Env:     h.Env,
+				Timeout: h.Timeout,
+			},
+		)
+	}
+	// poststop
+	for _, h := range opts.Hooks.Poststop {
+		hookLifeCycleObject.Poststop = append(hookLifeCycleObject.Poststop,
+			HookObject{
+				Path:    h.Path,
+				Args:    h.Args,
+				Env:     h.Env,
+				Timeout: h.Timeout,
+			},
+		)
+	}
+
+	return hookLifeCycleObject
+}
+
 func buildAnnotationSpec(opts ConfigOptions) AnnotationObject {
 	netSpec, _ := utils.JsonToString(buildNetSpec(opts))
 	imageSpec, _ := utils.JsonToString(buildImageSpec(opts))
@@ -268,6 +341,9 @@ func buildSpec(opts ConfigOptions) Spec {
 	// linux spec
 	linuxSpec := buildLinuxSpec(opts)
 
+	// hook spec
+	hookSpec := buildHookSpec(opts)
+
 	// annotation
 	annotation := buildAnnotationSpec(opts)
 
@@ -278,6 +354,7 @@ func buildSpec(opts ConfigOptions) Spec {
 		Process:     process,
 		Hostname:    hostname,
 		LinuxSpec:   linuxSpec,
+		Hooks:       hookSpec,
 		Annotations: annotation,
 	}
 }

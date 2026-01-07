@@ -1,6 +1,7 @@
 package container
 
 import (
+	"droplet/internal/hook"
 	"droplet/internal/status"
 	"droplet/internal/utils"
 )
@@ -10,8 +11,10 @@ import (
 // executing the container start phase.
 func NewContainerStart() *ContainerStart {
 	return &ContainerStart{
-		fifoHandler:            newContainerFifoHandler(),
-		containerStatusManager: status.NewStatusHandler(),
+		specLoader:              newFileSpecLoader(),
+		fifoHandler:             newContainerFifoHandler(),
+		containerStatusManager:  status.NewStatusHandler(),
+		containerHookController: hook.NewHookController(),
 	}
 }
 
@@ -22,11 +25,13 @@ func NewContainerStart() *ContainerStart {
 // writing to the FIFO and then removes the FIFO after the signal
 // is delivered.
 type ContainerStart struct {
+	specLoader  specLoader
 	fifoHandler interface {
 		writeFifo(path string) error
 		removeFifo(path string) error
 	}
-	containerStatusManager status.ContainerStatusManager
+	containerStatusManager  status.ContainerStatusManager
+	containerHookController hook.ContainerHookController
 }
 
 // Execute performs the container start sequence for the given container.
@@ -38,9 +43,22 @@ type ContainerStart struct {
 //
 // An error is returned if either the write or removal operation fails.
 func (c *ContainerStart) Execute(opt StartOption) error {
-	fifo := utils.FifoPath(opt.ContainerId)
+	// load config.json
+	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	if err != nil {
+		return err
+	}
+
+	// HOOK: startContainer
+	if err := c.containerHookController.RunStartContainerHooks(
+		opt.ContainerId,
+		spec.Hooks.StartContainer,
+	); err != nil {
+		return err
+	}
 
 	// write fifo
+	fifo := utils.FifoPath(opt.ContainerId)
 	if err := c.fifoHandler.writeFifo(fifo); err != nil {
 		return err
 	}
@@ -56,6 +74,14 @@ func (c *ContainerStart) Execute(opt StartOption) error {
 		opt.ContainerId,
 		status.RUNNING,
 		-1, // no update
+	); err != nil {
+		return err
+	}
+
+	// HOOK: poststart
+	if err := c.containerHookController.RunPoststartHooks(
+		opt.ContainerId,
+		spec.Hooks.Poststart,
 	); err != nil {
 		return err
 	}

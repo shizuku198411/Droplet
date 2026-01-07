@@ -10,7 +10,7 @@ import (
 
 func newContainerCgroupController() *containerCgroupController {
 	return &containerCgroupController{
-		syscallHandler: newSyscallHandler(),
+		syscallHandler: utils.NewSyscallHandler(),
 	}
 }
 
@@ -19,40 +19,25 @@ type containerCgroupPreparer interface {
 }
 
 type containerCgroupController struct {
-	syscallHandler containerEnvPrepareSyscallHandler
+	syscallHandler utils.KernelSyscallHandler
 }
 
 func (c *containerCgroupController) prepare(containerId string, spec spec.Spec, pid int) error {
-	// 1. create cgroup directory
-	if err := c.createCgroupDirectory(containerId); err != nil {
-		return err
-	}
-
-	// 2. set memory limit
+	// 1. set memory limit
 	if err := c.setMemoryLimit(containerId, spec.LinuxSpec.Resources.Memory); err != nil {
 		return err
 	}
 
-	// 3. set cpu limit
+	// 2. set cpu limit
 	if err := c.setCpuLimit(containerId, spec.LinuxSpec.Resources.Cpu); err != nil {
 		return err
 	}
 
-	// 4. set pid to cgroup.procs
+	// 3. set pid to cgroup.procs
 	if err := c.setProcessToCgroup(containerId, pid); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func (c *containerCgroupController) createCgroupDirectory(containerId string) error {
-	cgroupPath := utils.CgroupPath(containerId)
-
-	// create directory
-	if err := c.syscallHandler.MkdirAll(cgroupPath, 0755); err != nil {
-		return err
-	}
 	return nil
 }
 
