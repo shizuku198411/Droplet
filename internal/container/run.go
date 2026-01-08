@@ -67,9 +67,9 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
-	// create state.json
-	//   status = creating
-	//   pid = 0
+	// 2. create state.json
+	//      status = creating
+	//      pid = 0
 	if err := c.containerStatusManager.CreateStatusFile(
 		opt.ContainerId,
 		0,
@@ -81,7 +81,7 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
-	// HOOK: createRuntime
+	// 3. HOOK: createRuntime
 	if err := c.containerHookController.RunCreateRuntimeHooks(
 		opt.ContainerId,
 		spec.Hooks.CreateRuntime,
@@ -89,13 +89,13 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
-	// 2. create fifo
+	// 4. create fifo
 	fifo := utils.FifoPath(opt.ContainerId)
 	if err := c.fifoCreator.createFifo(fifo); err != nil {
 		return err
 	}
 
-	// 3. prepare init subcommand
+	// 5. prepare init subcommand
 	entrypoint := spec.Process.Args
 	initArgs := append([]string{"init", opt.ContainerId, fifo}, entrypoint...)
 	cmd := c.commandFactory.Command(os.Args[0], initArgs...)
@@ -114,7 +114,7 @@ func (c *ContainerRun) Run(opt RunOption) error {
 	sysProcAttr := buildSysProcAttr(procAttr)
 	cmd.SetSysProcAttr(sysProcAttr)
 
-	// 4. start init process
+	// 6. start init process
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -129,19 +129,19 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		fmt.Printf("create container success. ID: %s\n", opt.ContainerId)
 	}
 
-	// cgroup setup
+	// 7. cgroup setup
 	if err := c.containerCgroupPreparer.prepare(opt.ContainerId, spec, initPid); err != nil {
 		return err
 	}
 
-	// network setup
+	// 8. network setup
 	if err := c.containerNetworkPreparer.prepare(opt.ContainerId, initPid, spec.Annotations); err != nil {
 		return err
 	}
 
-	// update state.json
-	//   status = created
-	//   pid    = init pid
+	// 9. update state.json
+	//      status = created
+	//      pid    = init pid
 	if err := c.containerStatusManager.UpdateStatus(
 		opt.ContainerId,
 		status.CREATED,
@@ -150,7 +150,7 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
-	// HOOK: createContainer
+	// 10. HOOK: createContainer
 	if err := c.containerHookController.RunCreateContainerHooks(
 		opt.ContainerId,
 		spec.Hooks.CreateContainer,
@@ -158,7 +158,7 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
-	// HOOK: startContainer
+	// 11. HOOK: startContainer
 	if err := c.containerHookController.RunStartContainerHooks(
 		opt.ContainerId,
 		spec.Hooks.StartContainer,
@@ -166,15 +166,15 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
-	// 5. start container
+	// 12. start container
 	if err := c.containerStart.Execute(
 		StartOption{ContainerId: opt.ContainerId},
 	); err != nil {
 		return err
 	}
 
-	// update state.json
-	//   status = running
+	// 13. update state.json
+	//       status = running
 	if err := c.containerStatusManager.UpdateStatus(
 		opt.ContainerId,
 		status.RUNNING,
@@ -183,7 +183,7 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
-	// HOOK: poststart
+	// 14. HOOK: poststart
 	if err := c.containerHookController.RunPoststartHooks(
 		opt.ContainerId,
 		spec.Hooks.Poststart,
@@ -191,14 +191,14 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		return err
 	}
 
-	// 6. wait init process
+	// 15. wait init process
 	if opt.Interactive {
 		if err := cmd.Wait(); err != nil {
 			return err
 		}
 
-		// update state.json
-		//   status = stopped
+		// 16. update state.json
+		//        status = stopped
 		if err := c.containerStatusManager.UpdateStatus(
 			opt.ContainerId,
 			status.STOPPED,

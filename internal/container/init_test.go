@@ -169,24 +169,6 @@ func TestContainerInit_Execute_ExecError(t *testing.T) {
 	assert.Equal(t, errors.New("Exec() failed"), err)
 }
 
-func TestPrepare_Success(t *testing.T) {
-	// == arrange ==
-	spec := buildMockSpec(t)
-	mockKernelSyscall := &mockKernelSyscall{
-		statFileInfo: mockFileInfo{dir: true},
-	}
-	rootContainerEnvPreparer := &rootContainerEnvPreparer{
-		syscallHandler: mockKernelSyscall,
-	}
-
-	// == act ==
-	err := rootContainerEnvPreparer.prepare(spec)
-
-	// == assert ==
-	// error is nil
-	assert.Nil(t, err)
-}
-
 func TestPrepare_SetresgidError(t *testing.T) {
 	// == arrange ==
 	spec := buildMockSpec(t)

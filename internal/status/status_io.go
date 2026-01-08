@@ -8,6 +8,12 @@ import (
 	"syscall"
 )
 
+// ContainerStatusManager defines the operations required to manage
+// container state metadata (state.json).
+//
+// Implementations are responsible for creating, updating, reading,
+// and deleting the status file, as well as querying PID and status
+// for a given container ID.
 type ContainerStatusManager interface {
 	CreateStatusFile(containerId string, pid int, status ContainerStatus, rootfs string, bundle string, annotation spec.AnnotationObject) error
 	RemoveStatusFile(containerId string) error
@@ -15,18 +21,34 @@ type ContainerStatusManager interface {
 	UpdateStatus(containerId string, status ContainerStatus, pid int) error
 	GetPidFromId(containerId string) (int, error)
 	GetStatusFromId(containerId string) (ContainerStatus, error)
+	ListContainers() ([]StatusObject, error)
 }
 
+// NewStatusHandler constructs a StatusHandler with the default
+// KernelSyscallHandler implementation. This is the default
+// implementation of ContainerStatusManager used by the runtime.
 func NewStatusHandler() *StatusHandler {
 	return &StatusHandler{
 		syscallHandler: utils.NewSyscallHandler(),
 	}
 }
 
+// StatusHandler manages the lifecycle of container status files.
+//
+// It is responsible for:
+//   - Creating state.json when a container is created
+//   - Updating status and PID fields
+//   - Deleting state.json when a container is removed
+//   - Recomputing status based on the liveness of the container process
 type StatusHandler struct {
 	syscallHandler utils.KernelSyscallHandler
 }
 
+// CreateStatusFile creates or overwrites the status file (state.json)
+// for the given container ID.
+//
+// It populates the file with the provided PID, status, rootfs, bundle
+// path and annotations, along with the current OCI version.
 func (h *StatusHandler) CreateStatusFile(containerId string, pid int, status ContainerStatus,
 	rootfs string, bundle string, annotation spec.AnnotationObject) error {
 	stateFilePath := utils.ContainerStatePath(containerId)
@@ -47,6 +69,8 @@ func (h *StatusHandler) CreateStatusFile(containerId string, pid int, status Con
 	return nil
 }
 
+// RemoveStatusFile deletes the status file (state.json) associated
+// with the given container ID.
 func (h *StatusHandler) RemoveStatusFile(containerId string) error {
 	stateFilePath := utils.ContainerStatePath(containerId)
 	if err := h.syscallHandler.Remove(stateFilePath); err != nil {
@@ -55,6 +79,12 @@ func (h *StatusHandler) RemoveStatusFile(containerId string) error {
 	return nil
 }
 
+// ReadStatusFile returns the raw JSON string from the status file
+// for the given container ID.
+//
+// Before returning, it recomputes the status based on the current
+// process liveness (e.g., updates RUNNING to STOPPED if the PID
+// no longer exists), ensuring the file contents are up to date.
 func (h *StatusHandler) ReadStatusFile(containerId string) (string, error) {
 	stateFilePath := utils.ContainerStatePath(containerId)
 	// load status file
@@ -81,6 +111,11 @@ func (h *StatusHandler) ReadStatusFile(containerId string) (string, error) {
 	return string(data), nil
 }
 
+// UpdateStatus updates the status and/or PID fields in the status file
+// for the given container ID.
+//
+// If status is in the valid range, it is written. If pid is non-negative,
+// it replaces the existing PID.
 func (h *StatusHandler) UpdateStatus(containerId string, status ContainerStatus, pid int) error {
 	stateFilePath := utils.ContainerStatePath(containerId)
 	// load status file
@@ -105,6 +140,8 @@ func (h *StatusHandler) UpdateStatus(containerId string, status ContainerStatus,
 	return nil
 }
 
+// GetPidFromId returns the PID recorded in the status file for the
+// given container ID without recomputing the status.
 func (h *StatusHandler) GetPidFromId(containerId string) (int, error) {
 	stateFilePath := utils.ContainerStatePath(containerId)
 	// load status file
@@ -116,6 +153,12 @@ func (h *StatusHandler) GetPidFromId(containerId string) (int, error) {
 	return statusObject.Pid, nil
 }
 
+// GetStatusFromId returns the current ContainerStatus for the given
+// container ID.
+//
+// The status may be recomputed based on process liveness (for example,
+// converting RUNNING to STOPPED if the recorded PID is no longer alive)
+// before being returned.
 func (h *StatusHandler) GetStatusFromId(containerId string) (ContainerStatus, error) {
 	stateFilePath := utils.ContainerStatePath(containerId)
 	// load status file
@@ -145,6 +188,11 @@ func (h *StatusHandler) GetStatusFromId(containerId string) (ContainerStatus, er
 	return newStatus, nil
 }
 
+// recomputeStatus recomputes and updates the status in the status file
+// based on the liveness of the recorded PID.
+//
+// Currently, if the status is RUNNING but the process is no longer
+// alive, it updates the status to STOPPED and clears the PID.
 func (h *StatusHandler) recomputeStatus(containerId string, pid int, currentStatus ContainerStatus) error {
 	if currentStatus == RUNNING {
 		alive, _ := h.pidAlive(pid)
@@ -157,6 +205,12 @@ func (h *StatusHandler) recomputeStatus(containerId string, pid int, currentStat
 	return nil
 }
 
+// pidAlive reports whether a process with the given PID appears to be alive.
+//
+// It sends signal 0 to the PID:
+//   - nil        => process exists and is accessible
+//   - ESRCH      => process does not exist
+//   - EPERM      => process exists but cannot be signaled due to permissions
 func (h *StatusHandler) pidAlive(pid int) (bool, error) {
 	if pid <= 0 {
 		// process not exist
@@ -179,4 +233,49 @@ func (h *StatusHandler) pidAlive(pid int) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func (h *StatusHandler) ListContainers() ([]StatusObject, error) {
+	var list []StatusObject
+
+	containerBaseDir := utils.DefaultRootDir()
+
+	entries, err := h.syscallHandler.ReadDir(containerBaseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		containerId := entry.Name()
+		stateFilePath := utils.ContainerStatePath(containerId)
+		// load status file
+		var statusObject StatusObject
+		if err := utils.ReadJsonFile(stateFilePath, &statusObject); err != nil {
+			// skip if state.json is not exist
+			continue
+		}
+
+		// recompute status
+		currentStatus, err := ParseContainerStatus(statusObject.Status)
+		if err != nil {
+			return nil, err
+		}
+		if err := h.recomputeStatus(statusObject.Id, statusObject.Pid, currentStatus); err != nil {
+			return nil, err
+		}
+
+		// reload status file
+		if err := utils.ReadJsonFile(stateFilePath, &statusObject); err != nil {
+			// skip if state.json is not exist
+			continue
+		}
+
+		list = append(list, statusObject)
+	}
+
+	return list, nil
 }

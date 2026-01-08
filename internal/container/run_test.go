@@ -1,6 +1,7 @@
 package container
 
 import (
+	"droplet/internal/status"
 	"errors"
 	"testing"
 
@@ -36,7 +37,9 @@ func TestContainerRun_Run_InteractiveSuccess(t *testing.T) {
 	mockExecCommandFactory := &mockExecCommandFactory{
 		commandExecutor: mockExecCmd,
 	}
-	mockContainerStatusManager := &mockStatusHandler{}
+	mockContainerStatusManager := &mockStatusHandler{
+		getStatusFromIdStatus: status.CREATED,
+	}
 	mockContainerStart := &ContainerStart{
 		specLoader:              mockFileSpecLoader,
 		fifoHandler:             mockCotainerFifoHandler,
@@ -97,7 +100,9 @@ func TestContainerRun_Run_NonInteractiveSuccess(t *testing.T) {
 	mockExecCommandFactory := &mockExecCommandFactory{
 		commandExecutor: mockExecCmd,
 	}
-	mockContainerStatusManager := &mockStatusHandler{}
+	mockContainerStatusManager := &mockStatusHandler{
+		getStatusFromIdStatus: status.CREATED,
+	}
 	mockContainerStart := &ContainerStart{
 		specLoader:              mockFileSpecLoader,
 		fifoHandler:             mockCotainerFifoHandler,
@@ -377,7 +382,9 @@ func TestContainerRun_Run_WaitError(t *testing.T) {
 	mockExecCommandFactory := &mockExecCommandFactory{
 		commandExecutor: mockExecCmd,
 	}
-	mockContainerStatusManager := &mockStatusHandler{}
+	mockContainerStatusManager := &mockStatusHandler{
+		getStatusFromIdStatus: status.CREATED,
+	}
 	mockContainerStart := &ContainerStart{
 		specLoader:              mockFileSpecLoader,
 		fifoHandler:             mockCotainerFifoHandler,

@@ -181,6 +181,12 @@ type mockKernelSyscall struct {
 	statFileInfo os.FileInfo
 	statErr      error
 
+	// ReadDir()
+	readDirCallFlag bool
+	readDirName     string
+	readDirDirEntry []os.DirEntry
+	readDirErr      error
+
 	// Create()
 	createCallFlag bool
 	createName     string
@@ -316,6 +322,12 @@ func (m *mockKernelSyscall) Rmdir(path string) error {
 	m.rmdirCallFlag = true
 	m.rmdirPath = path
 	return m.rmdirErr
+}
+
+func (m *mockKernelSyscall) ReadDir(name string) ([]os.DirEntry, error) {
+	m.readDirCallFlag = true
+	m.readDirName = name
+	return m.readDirDirEntry, m.readDirErr
 }
 
 func (m *mockKernelSyscall) Stat(name string) (os.FileInfo, error) {

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/syndtr/gocapability/capability"
 )
 
 // NewContainerInit returns a ContainerInit wired with the default
@@ -109,16 +111,21 @@ type rootContainerEnvPreparer struct {
 	syscallHandler utils.KernelSyscallHandler
 }
 
-// prepare performs the container-environment initialization sequence based
-// on the provided OCI runtime specification.
+// prepare sets up the runtime environment for the root container process
+// according to the provided OCI spec.
 //
-// The current sequence consists of:
+// The workflow is:
+//  1. Switch to uid=0 (root) inside the user namespace
+//  2. Set the hostname to the container ID from the spec
+//  3. Set up the overlay filesystem based on rootfs and image annotations
+//  4. Mount the configured filesystems
+//  5. Mount standard device files under the new root
+//  6. Create required symbolic links under the new root
+//  7. Perform pivot_root into the container root filesystem
+//  8. Configure Linux capabilities for the process
 //
-//  1. Switching to UID/GID 0 within the user namespace
-//  2. Setting the container hostname in the UTS namespace
-//
-// Additional lifecycle steps (filesystem mounts, pivot_root, /proc setup,
-// etc.) can be appended to this method as required.
+// If any step fails, the error is returned immediately and the remaining
+// steps are not executed.
 func (p *rootContainerEnvPreparer) prepare(spec spec.Spec) error {
 	// 1. change uid=0(root) inside container
 	if err := p.switchToUserNamespaceRoot(); err != nil {
@@ -146,6 +153,10 @@ func (p *rootContainerEnvPreparer) prepare(spec spec.Spec) error {
 	}
 	// 7. pivot_root
 	if err := p.pivotRoot(spec.Root.Path); err != nil {
+		return err
+	}
+	// 8. set capability
+	if err := p.setCapability(spec.Process.Capabilities); err != nil {
 		return err
 	}
 
@@ -456,6 +467,56 @@ func (p *rootContainerEnvPreparer) pivotRoot(rootfs string) error {
 	// 5. remove put_old
 	if err := p.syscallHandler.Rmdir("/put_old"); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// setCapability configures Linux capabilities for the current (init) process
+// according to the provided OCI capability configuration.
+//
+// The workflow is:
+//  1. Create a capability set for PID 0 (the calling process)
+//  2. Clear all capability sets (BOUNDING, PERMITTED, INHERITABLE, EFFECTIVE, AMBIENT)
+//  3. Convert capability names from the spec to capability.Cap values
+//  4. Populate each capability set from the corresponding field in capConfig
+//  5. Apply the updated capability sets to the process
+//
+// If capability initialization or application fails, an error is returned.
+func (p *rootContainerEnvPreparer) setCapability(capConfig spec.CapabilityObject) error {
+	// set current process(init process) capability
+	c, err := capability.NewPid2(0)
+	if err != nil {
+		return err
+	}
+
+	// clear all cap
+	c.Clear(capability.BOUNDING | capability.PERMITTED | capability.INHERITABLE | capability.EFFECTIVE | capability.AMBIENT)
+
+	// set bounding
+	if len(capConfig.Bounding) > 0 {
+		c.Set(capability.BOUNDING, toCaps(capConfig.Bounding)...)
+	}
+	// set permitted
+	if len(capConfig.Permitted) > 0 {
+		c.Set(capability.PERMITTED, toCaps(capConfig.Permitted)...)
+	}
+	// set inheritable
+	if len(capConfig.Inheritable) > 0 {
+		c.Set(capability.INHERITABLE, toCaps(capConfig.Inheritable)...)
+	}
+	// set effective
+	if len(capConfig.Effective) > 0 {
+		c.Set(capability.EFFECTIVE, toCaps(capConfig.Effective)...)
+	}
+	// set ambient
+	if len(capConfig.Ambient) > 0 {
+		c.Set(capability.AMBIENT, toCaps(capConfig.Ambient)...)
+	}
+
+	// apply
+	if err := c.Apply(capability.BOUNDING | capability.PERMITTED | capability.INHERITABLE | capability.EFFECTIVE | capability.AMBIENT); err != nil {
+		return fmt.Errorf("apply capability failed: %w", err)
 	}
 
 	return nil

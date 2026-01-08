@@ -1,6 +1,7 @@
 package container
 
 import (
+	"droplet/internal/status"
 	"errors"
 	"testing"
 
@@ -31,7 +32,9 @@ func TestContainerStart_Success(t *testing.T) {
 	opts := buildStartOption(t)
 	mockSpecLoader := &mockFileSpecLoader{}
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{}
-	mockContainerStatusManager := &mockStatusHandler{}
+	mockContainerStatusManager := &mockStatusHandler{
+		getStatusFromIdStatus: status.CREATED,
+	}
 	mockHookController := &mockHookController{}
 	containerStart := &ContainerStart{
 		specLoader:              mockSpecLoader,
@@ -63,7 +66,9 @@ func TestContainerStart_WriteFifoError(t *testing.T) {
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{
 		writeFifoErr: errors.New("writeFifo() failed"),
 	}
-	mockContainerStatusManager := &mockStatusHandler{}
+	mockContainerStatusManager := &mockStatusHandler{
+		getStatusFromIdStatus: status.CREATED,
+	}
 	mockHookController := &mockHookController{}
 	containerStart := &ContainerStart{
 		specLoader:              mockSpecLoader,
@@ -87,7 +92,9 @@ func TestContainerStart_RemoveFifoError(t *testing.T) {
 	mockCotainerFifoHandler := &mockCotainerFifoHandler{
 		removeFifoErr: errors.New("removeFifo() failed"),
 	}
-	mockContainerStatusManager := &mockStatusHandler{}
+	mockContainerStatusManager := &mockStatusHandler{
+		getStatusFromIdStatus: status.CREATED,
+	}
 	mockHookController := &mockHookController{}
 	containerStart := &ContainerStart{
 		specLoader:              mockSpecLoader,

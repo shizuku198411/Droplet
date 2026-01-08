@@ -45,6 +45,11 @@ type mockStatusHandler struct {
 	getStatusFromIdContainerId string
 	getStatusFromIdStatus      status.ContainerStatus
 	getStatusFromIdErr         error
+
+	// ListContainers()
+	listContainersCallFlag bool
+	listContainersList     []status.StatusObject
+	listConainersErr       error
 }
 
 func (m *mockStatusHandler) CreateStatusFile(containerId string, pid int, status status.ContainerStatus, rootfs string, bundle string, annotation spec.AnnotationObject) error {
@@ -86,4 +91,9 @@ func (m *mockStatusHandler) GetStatusFromId(containerId string) (status.Containe
 	m.getStatusFromIdCallFlag = true
 	m.getStatusFromIdContainerId = containerId
 	return m.getStatusFromIdStatus, m.getStatusFromIdErr
+}
+
+func (m *mockStatusHandler) ListContainers() ([]status.StatusObject, error) {
+	m.listContainersCallFlag = true
+	return m.listContainersList, m.listConainersErr
 }

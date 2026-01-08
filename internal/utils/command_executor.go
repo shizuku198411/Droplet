@@ -132,6 +132,7 @@ type KernelSyscallHandler interface {
 	Mkdir(path string, mode uint32) error
 	MkdirAll(path string, perm os.FileMode) error
 	Rmdir(path string) error
+	ReadDir(name string) ([]os.DirEntry, error)
 	Stat(name string) (os.FileInfo, error)
 	Create(name string) (*os.File, error)
 	Remove(name string) error
@@ -249,6 +250,10 @@ func (k *kernelSyscall) MkdirAll(path string, perm os.FileMode) error {
 // If the directory is not empty, the call fails with an error.
 func (k *kernelSyscall) Rmdir(path string) error {
 	return syscall.Rmdir(path)
+}
+
+func (k *kernelSyscall) ReadDir(name string) ([]os.DirEntry, error) {
+	return os.ReadDir(name)
 }
 
 // Stat returns file or directory metadata using the stat(2) syscall.

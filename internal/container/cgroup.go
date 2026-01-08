@@ -8,20 +8,34 @@ import (
 	"strconv"
 )
 
+// newContainerCgroupController returns a new containerCgroupController
+// with a default KernelSyscallHandler implementation.
+// The controller is responsible for preparing and configuring
+// cgroup v2 resources for a target container.
 func newContainerCgroupController() *containerCgroupController {
 	return &containerCgroupController{
 		syscallHandler: utils.NewSyscallHandler(),
 	}
 }
 
+// containerCgroupPreparer defines the behavior required to
+// prepare cgroup resources for a container. Implementations
+// should apply resource limits and attach a process to the cgroup.
 type containerCgroupPreparer interface {
 	prepare(containerId string, spec spec.Spec, pid int) error
 }
 
+// containerCgroupController manages cgroup resource configuration
+// for a container. It applies CPU and memory limits and assigns
+// processes into the appropriate cgroup.
 type containerCgroupController struct {
 	syscallHandler utils.KernelSyscallHandler
 }
 
+// prepare applies resource limits defined in the container spec
+// and assigns the given process ID to the container's cgroup.
+// This method configures memory, CPU, and process membership
+// sequentially and returns an error if any step fails.
 func (c *containerCgroupController) prepare(containerId string, spec spec.Spec, pid int) error {
 	// 1. set memory limit
 	if err := c.setMemoryLimit(containerId, spec.LinuxSpec.Resources.Memory); err != nil {
@@ -41,6 +55,9 @@ func (c *containerCgroupController) prepare(containerId string, spec spec.Spec, 
 	return nil
 }
 
+// setMemoryLimit writes the memory limit value to memory.max
+// under the container's cgroup directory. The value is applied
+// according to the provided MemoryObject configuration.
 func (c *containerCgroupController) setMemoryLimit(containerId string, memoryObject spec.MemoryObject) error {
 	cgroupPath := utils.CgroupPath(containerId)
 	memoryPath := filepath.Join(cgroupPath, "memory.max")
@@ -53,6 +70,9 @@ func (c *containerCgroupController) setMemoryLimit(containerId string, memoryObj
 	return nil
 }
 
+// setCpuLimit writes CPU quota and period values to cpu.max
+// under the container's cgroup directory. The quota and period
+// together define the scheduler time allocation for the container.
 func (c *containerCgroupController) setCpuLimit(containerId string, cpuObject spec.CpuObject) error {
 	cgroupPath := utils.CgroupPath(containerId)
 	cpuPath := filepath.Join(cgroupPath, "cpu.max")
@@ -64,6 +84,9 @@ func (c *containerCgroupController) setCpuLimit(containerId string, cpuObject sp
 	return nil
 }
 
+// setProcessToCgroup assigns the given process ID to the container's
+// cgroup by writing it into cgroup.procs. This ensures the process
+// becomes subject to the configured resource limits.
 func (c *containerCgroupController) setProcessToCgroup(containerId string, pid int) error {
 	cgroupPath := utils.CgroupPath(containerId)
 	cgroupProcs := filepath.Join(cgroupPath, "cgroup.procs")
