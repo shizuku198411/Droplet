@@ -27,6 +27,8 @@ func TestContainerKill_Kill_Success(t *testing.T) {
 		ContainerId: "12345",
 		Signal:      "KILL",
 	}
+	mockSpecLoader := &mockFileSpecLoader{}
+	mockHookController := &mockHookController{}
 	mockKernelSyscall := &mockKernelSyscall{}
 	mockContainerStatusManager := &mockStatusHandler{
 		getStatusFromIdStatus: status.RUNNING,
@@ -34,8 +36,10 @@ func TestContainerKill_Kill_Success(t *testing.T) {
 		getPidFromIdPid:       11111,
 	}
 	containerKill := &ContainerKill{
-		syscallHandler:         mockKernelSyscall,
-		containerStatusManager: mockContainerStatusManager,
+		syscallHandler:          mockKernelSyscall,
+		containerStatusManager:  mockContainerStatusManager,
+		specLoader:              mockSpecLoader,
+		containerHookController: mockHookController,
 	}
 
 	// == act ==
@@ -58,13 +62,17 @@ func TestContainerKill_Kill_GetStatusError(t *testing.T) {
 		ContainerId: "12345",
 		Signal:      "KILL",
 	}
+	mockSpecLoader := &mockFileSpecLoader{}
+	mockHookController := &mockHookController{}
 	mockKernelSyscall := &mockKernelSyscall{}
 	mockContainerStatusManager := &mockStatusHandler{
 		getStatusFromIdErr: errors.New("get status failed"),
 	}
 	containerKill := &ContainerKill{
-		syscallHandler:         mockKernelSyscall,
-		containerStatusManager: mockContainerStatusManager,
+		syscallHandler:          mockKernelSyscall,
+		containerStatusManager:  mockContainerStatusManager,
+		specLoader:              mockSpecLoader,
+		containerHookController: mockHookController,
 	}
 
 	// == act ==
@@ -81,14 +89,18 @@ func TestContainerKill_Kill_NotRunningError(t *testing.T) {
 		ContainerId: "12345",
 		Signal:      "KILL",
 	}
+	mockSpecLoader := &mockFileSpecLoader{}
+	mockHookController := &mockHookController{}
 	mockKernelSyscall := &mockKernelSyscall{}
 	mockContainerStatusManager := &mockStatusHandler{
 		getStatusFromIdStatus: status.STOPPED,
 		getStatusFromIdErr:    nil,
 	}
 	containerKill := &ContainerKill{
-		syscallHandler:         mockKernelSyscall,
-		containerStatusManager: mockContainerStatusManager,
+		syscallHandler:          mockKernelSyscall,
+		containerStatusManager:  mockContainerStatusManager,
+		specLoader:              mockSpecLoader,
+		containerHookController: mockHookController,
 	}
 
 	// == act ==
@@ -105,6 +117,8 @@ func TestContainerKill_Kill_GetPidError(t *testing.T) {
 		ContainerId: "12345",
 		Signal:      "KILL",
 	}
+	mockSpecLoader := &mockFileSpecLoader{}
+	mockHookController := &mockHookController{}
 	mockKernelSyscall := &mockKernelSyscall{}
 	mockContainerStatusManager := &mockStatusHandler{
 		getStatusFromIdStatus: status.RUNNING,
@@ -112,8 +126,10 @@ func TestContainerKill_Kill_GetPidError(t *testing.T) {
 		getPidFromIdErr:       errors.New("get pid failed"),
 	}
 	containerKill := &ContainerKill{
-		syscallHandler:         mockKernelSyscall,
-		containerStatusManager: mockContainerStatusManager,
+		syscallHandler:          mockKernelSyscall,
+		containerStatusManager:  mockContainerStatusManager,
+		specLoader:              mockSpecLoader,
+		containerHookController: mockHookController,
 	}
 
 	// == act ==

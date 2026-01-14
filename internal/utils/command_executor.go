@@ -142,6 +142,7 @@ type KernelSyscallHandler interface {
 	OpenFile(name string, flag int, perm os.FileMode) (*os.File, error)
 	WriteFile(name string, data []byte, perm os.FileMode) error
 	Kill(pid int, sig syscall.Signal) error
+	Setenv(key string, value string) error
 }
 
 // newSyscallHandler returns a kernelSyscall that delegates to
@@ -314,4 +315,8 @@ func (k *kernelSyscall) WriteFile(name string, data []byte, perm os.FileMode) er
 
 func (h *kernelSyscall) Kill(pid int, sig syscall.Signal) error {
 	return syscall.Kill(pid, sig)
+}
+
+func (h *kernelSyscall) Setenv(key string, value string) error {
+	return os.Setenv(key, value)
 }

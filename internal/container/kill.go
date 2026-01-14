@@ -1,6 +1,7 @@
 package container
 
 import (
+	"droplet/internal/hook"
 	"droplet/internal/status"
 	"droplet/internal/utils"
 	"fmt"
@@ -12,8 +13,10 @@ import (
 // delivers a signal to a running container’s init process.
 func NewContainerKill() *ContainerKill {
 	return &ContainerKill{
-		syscallHandler:         utils.NewSyscallHandler(),
-		containerStatusManager: status.NewStatusHandler(),
+		specLoader:              newFileSpecLoader(),
+		syscallHandler:          utils.NewSyscallHandler(),
+		containerStatusManager:  status.NewStatusHandler(),
+		containerHookController: hook.NewHookController(),
 	}
 }
 
@@ -28,8 +31,10 @@ func NewContainerKill() *ContainerKill {
 // Low-level system interactions are delegated to collaborators to
 // keep the workflow testable and replaceable.
 type ContainerKill struct {
-	syscallHandler         utils.KernelSyscallHandler
-	containerStatusManager status.ContainerStatusManager
+	specLoader              specLoader
+	syscallHandler          utils.KernelSyscallHandler
+	containerStatusManager  status.ContainerStatusManager
+	containerHookController hook.ContainerHookController
 }
 
 // Kill sends a signal to the container’s init process and updates its state.
@@ -70,6 +75,20 @@ func (c *ContainerKill) Kill(opt KillOption) error {
 		opt.ContainerId,
 		status.STOPPED,
 		0,
+	); err != nil {
+		return err
+	}
+
+	// 5. load config.json
+	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	if err != nil {
+		return err
+	}
+
+	// 6. HOOK: stopContainer
+	if err := c.containerHookController.RunStopContainerHooks(
+		opt.ContainerId,
+		spec.Hooks.StopContainer,
 	); err != nil {
 		return err
 	}

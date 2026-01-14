@@ -68,6 +68,7 @@ type HookLifecycleObject struct {
 	CreateContainer []HookObject `json:"createContainer,omitempty"`
 	StartContainer  []HookObject `json:"startContainer,omitempty"`
 	Poststart       []HookObject `json:"poststart,omitempty"`
+	StopContainer   []HookObject `json:"stopContainer,omitempty"`
 	Poststop        []HookObject `json:"poststop,omitempty"`
 }
 

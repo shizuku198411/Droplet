@@ -135,6 +135,9 @@ func (p *rootContainerEnvPreparer) prepare(spec spec.Spec) error {
 	if err := p.setHostnameToContainerId(spec.Hostname); err != nil {
 		return err
 	}
+	if err := p.setEnv(spec.Process.Env); err != nil {
+		return err
+	}
 	// 3. setup overlay
 	if err := p.setupOverlay(spec.Root.Path, spec.Annotations.Image); err != nil {
 		return err
@@ -191,6 +194,17 @@ func (p *rootContainerEnvPreparer) switchToUserNamespaceRoot() error {
 func (p *rootContainerEnvPreparer) setHostnameToContainerId(hostname string) error {
 	if err := p.syscallHandler.Sethostname([]byte(hostname)); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (p *rootContainerEnvPreparer) setEnv(envlist []string) error {
+	for _, e := range envlist {
+		envParts := strings.Split(e, "=")
+		k, v := envParts[0], envParts[1]
+		if err := p.syscallHandler.Setenv(k, v); err != nil {
+			return err
+		}
 	}
 	return nil
 }

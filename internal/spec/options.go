@@ -41,6 +41,7 @@ type HookLifecycleOption struct {
 	CreateContainer []HookOption
 	StartContainer  []HookOption
 	Poststart       []HookOption
+	StopContainer   []HookOption
 	Poststop        []HookOption
 }
 
