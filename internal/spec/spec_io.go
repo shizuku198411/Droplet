@@ -298,6 +298,17 @@ func buildHookSpec(opts ConfigOptions) HookLifecycleObject {
 			},
 		)
 	}
+	// stopContainer
+	for _, h := range opts.Hooks.StopContainer {
+		hookLifeCycleObject.StopContainer = append(hookLifeCycleObject.StopContainer,
+			HookObject{
+				Path:    h.Path,
+				Args:    h.Args,
+				Env:     h.Env,
+				Timeout: h.Timeout,
+			},
+		)
+	}
 	// poststop
 	for _, h := range opts.Hooks.Poststop {
 		hookLifeCycleObject.Poststop = append(hookLifeCycleObject.Poststop,

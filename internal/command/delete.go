@@ -25,7 +25,7 @@ func runDelete(ctx *cli.Context) error {
 		ContainerId: containerId,
 	})
 	if err != nil {
-		return nil
+		return err
 	}
 
 	return nil

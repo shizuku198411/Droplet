@@ -233,6 +233,12 @@ type mockKernelSyscall struct {
 	killPid      int
 	killSig      syscall.Signal
 	killErr      error
+
+	// Setenv()
+	setenvCallFlag bool
+	setenvKey      string
+	setenvValue    string
+	setenvErr      error
 }
 
 func (m *mockKernelSyscall) Exec(argv0 string, argv []string, envv []string) error {
@@ -387,6 +393,13 @@ func (m *mockKernelSyscall) WriteFile(name string, data []byte, perm os.FileMode
 	m.writeFileData = data
 	m.writeFilePerm = perm
 	return m.writeFileErr
+}
+
+func (m *mockKernelSyscall) Setenv(key string, value string) error {
+	m.setenvCallFlag = true
+	m.setenvKey = key
+	m.setenvValue = value
+	return m.setenvErr
 }
 
 type mockFileInfo struct {

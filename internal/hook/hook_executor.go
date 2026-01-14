@@ -18,6 +18,7 @@ type ContainerHookController interface {
 	RunCreateContainerHooks(containerId string, hookList []spec.HookObject) error
 	RunStartContainerHooks(containerId string, hookList []spec.HookObject) error
 	RunPoststartHooks(containerId string, hookList []spec.HookObject) error
+	RunStopContainerHooks(containerId string, hookList []spec.HookObject) error
 	RunPoststopHooks(containerId string, hookList []spec.HookObject) error
 }
 
@@ -87,6 +88,13 @@ func (c *HookController) RunPoststartHooks(containerId string, hookList []spec.H
 		return nil
 	}
 	return c.runHookList(containerId, "poststart", hookList)
+}
+
+func (c *HookController) RunStopContainerHooks(containerId string, hookList []spec.HookObject) error {
+	if hookList == nil || len(hookList) == 0 {
+		return nil
+	}
+	return c.runHookList(containerId, "stopContainer", hookList)
 }
 
 // RunPoststopHooks executes the poststop hook list in the host

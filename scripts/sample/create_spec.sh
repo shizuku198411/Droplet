@@ -15,7 +15,7 @@ IF_ADDR=10.166.0.1/24
 IF_GW=10.166.0.254
 DNS=8.8.8.8
 
-IMAGE_LAYER=/etc/raind/image/layers/alpine
+IMAGE_LAYER=/etc/raind/image/layers/alpine/latest/rootfs
 UPPER_DIR=/etc/raind/container/$CID/diff
 WORK_DIR=/etc/raind/container/$CID/work
 

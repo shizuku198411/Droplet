@@ -114,6 +114,10 @@ func commandSpec() *cli.Command {
 				Usage: "poststart hook (format: path[,arg1,arg2,...])",
 			},
 			&cli.StringSliceFlag{
+				Name:  "hook-stop-container",
+				Usage: "stopContainer hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
 				Name:  "hook-poststop",
 				Usage: "poststop hook (format: path[,arg1,arg2,...])",
 			},
@@ -215,6 +219,10 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 	if err != nil {
 		return spec.ConfigOptions{}, err
 	}
+	stopContainerHook, err := parseHookFlag(ctx.StringSlice("hook-stop-container"))
+	if err != nil {
+		return spec.ConfigOptions{}, err
+	}
 	poststopHook, err := parseHookFlag(ctx.StringSlice("hook-poststop"))
 	if err != nil {
 		return spec.ConfigOptions{}, err
@@ -249,6 +257,7 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 			CreateContainer: createContainerHook,
 			StartContainer:  startContainerHook,
 			Poststart:       poststartHook,
+			StopContainer:   stopContainerHook,
 			Poststop:        poststopHook,
 		},
 	}, nil

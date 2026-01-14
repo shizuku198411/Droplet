@@ -29,6 +29,12 @@ type mockHookController struct {
 	runPoststartHooksHookList    []spec.HookObject
 	runPoststartHooksErr         error
 
+	// RunStartContainerHooks()
+	runStopContainerHooksCallFlag    bool
+	runStopContainerHooksContainerId string
+	runStopContainerHooksHookList    []spec.HookObject
+	runStopContainerHooksErr         error
+
 	// RunPoststopHooks()
 	runPoststopHooksCallFlag    bool
 	runPoststopHooksContainerId string
@@ -69,4 +75,11 @@ func (m *mockHookController) RunPoststopHooks(containerId string, hookList []spe
 	m.runPoststopHooksContainerId = containerId
 	m.runPoststopHooksHookList = hookList
 	return m.runPoststopHooksErr
+}
+
+func (m *mockHookController) RunStopContainerHooks(containerId string, hookList []spec.HookObject) error {
+	m.runStopContainerHooksCallFlag = true
+	m.runStopContainerHooksContainerId = containerId
+	m.runStopContainerHooksHookList = hookList
+	return m.runStopContainerHooksErr
 }
