@@ -12,6 +12,7 @@ The Raind container runtime stack is composed of three layers:
 
 - **Raind CLI** – A user interface for operating the entire runtime stack  
 - **Condenser** – A high-level container runtime responsible for container lifecycle and image management  
+  (repository: https://github.com/pyxgun/Condenser)
 - **Droplet** – A low-level container runtime that handles container startup, deletion, and related operations (this repository)
 
 ## Features
@@ -24,8 +25,6 @@ Droplet currently supports:
 - Capability set configuration
 - Network interface configuration
 - OCI lifecycle hooks
-
----
 
 ## Build
 
@@ -106,6 +105,3 @@ docker export $(docker create alpine) | tar -C alpine -xvf -
 
 Droplet and the Raind container runtime stack are currently under active development.
 APIs and behavior may change without notice.
-
----
-
