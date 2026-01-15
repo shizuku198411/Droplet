@@ -76,7 +76,7 @@ func (c *ContainerInit) Execute(opt InitOption) error {
 	}
 
 	// 3. prepare container environment
-	if err := c.containerEnvPreparer.prepare(spec); err != nil {
+	if err := c.containerEnvPreparer.prepare(opt.ContainerId, spec); err != nil {
 		return err
 	}
 
@@ -96,7 +96,7 @@ func (c *ContainerInit) Execute(opt InitOption) error {
 // hostname configuration, filesystem setup, and other initialization logic
 // that must occur before the container entrypoint is executed.
 type containerEnvPreparer interface {
-	prepare(spec spec.Spec) error
+	prepare(containerId string, spec spec.Spec) error
 }
 
 // rootContainerEnvPreparer is the default envPreparer implementation used
@@ -126,7 +126,7 @@ type rootContainerEnvPreparer struct {
 //
 // If any step fails, the error is returned immediately and the remaining
 // steps are not executed.
-func (p *rootContainerEnvPreparer) prepare(spec spec.Spec) error {
+func (p *rootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) error {
 	// 1. change uid=0(root) inside container
 	if err := p.switchToUserNamespaceRoot(); err != nil {
 		return err
@@ -143,7 +143,7 @@ func (p *rootContainerEnvPreparer) prepare(spec spec.Spec) error {
 		return err
 	}
 	// 4. mount filesystem
-	if err := p.mountFilesystem(spec.Root.Path, spec.Mounts); err != nil {
+	if err := p.mountFilesystem(containerId, spec.Root.Path, spec.Mounts); err != nil {
 		return err
 	}
 	// 5. mount standard device
@@ -249,17 +249,221 @@ func (p *rootContainerEnvPreparer) setupOverlay(rootfs string, imageAnnotation s
 // The mountList contains entries such as /proc, /dev, /sys, cgroup, tmpfs,
 // and arbitrary host paths. For bind mounts, this method prepares the
 // destination path depending on whether the source is a file or a directory.
-// If "rprivate" is specified, mount propagation is updated accordingly.
-func (p *rootContainerEnvPreparer) mountFilesystem(rootfs string, mountList []spec.MountObject) error {
+func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs string, mountList []spec.MountObject) error {
+	// mount path validation for protecting path traversal
+	securePath := func(rootfs, dest string) (string, error) {
+		rel := strings.TrimPrefix(dest, "/")
+		clean := filepath.Clean(rel)
+
+		if clean == "." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) || clean == ".." {
+			return "", fmt.Errorf("invalid destination: %q", dest)
+		}
+
+		fullPath := filepath.Join(rootfs, clean)
+		root := filepath.Clean(rootfs) + string(os.PathSeparator)
+		if !strings.HasPrefix(fullPath+string(os.PathSeparator), root) && fullPath != filepath.Clean(rootfs) {
+			return "", fmt.Errorf("destination escapes rootfs: %q -> %q", dest, fullPath)
+		}
+		return fullPath, nil
+	}
+
+	// source mount validation
+	// the following source is denied by default
+	//   /proc, /sys, /dev, /run, /var/run, /boot, /root, /
+	hasDeniedSource := func(source string) bool {
+		p := filepath.Clean(source)
+		if p == "/" {
+			return true
+		}
+		deniedList := []string{"/proc", "/sys", "/dev", "/run", "/var/run", "/boot", "/root"}
+		for _, d := range deniedList {
+			if p == d || strings.HasPrefix(p, d+string(os.PathSeparator)) {
+				return true
+			}
+		}
+		return false
+	}
+
 	// mount file system required for operation. required fs is the following
 	//   /proc, /dev, /dev/pts, /sys, /sys/fs/cgroup, /dev/mqueue, /dev/shm
 	// additionally, mount user-specified host directories
-	for _, mountConfig := range mountList {
+	var prerequiredMounts = []spec.MountObject{
+		{
+			Destination: "/proc",
+			Type:        "proc",
+			Source:      "proc",
+			Options: []string{
+				"nosuid",
+				"noexec",
+				"nodev",
+			},
+		},
+		{
+			Destination: "/dev",
+			Type:        "tmpfs",
+			Source:      "tmpfs",
+			Options: []string{
+				"nosuid",
+				"strictatime",
+				"mode=755",
+				"size=65536k",
+			},
+		},
+		{
+			Destination: "/dev/pts",
+			Type:        "devpts",
+			Source:      "devpts",
+			Options: []string{
+				"nosuid",
+				"noexec",
+				"newinstance",
+				"ptmxmode=0666",
+				"mode=0620",
+				"gid=5",
+			},
+		},
+		{
+			Destination: "/sys",
+			Type:        "sysfs",
+			Source:      "sysfs",
+			Options: []string{
+				"nosuid",
+				"noexec",
+				"nodev",
+				"ro",
+			},
+		},
+		{
+			Destination: "/tmp",
+			Type:        "tmpfs",
+			Source:      "tmpfs",
+			Options: []string{
+				"nosuid",
+				"nodev",
+				"mode=1777",
+				"size=65536k",
+			},
+		},
+		{
+			Destination: "/run",
+			Type:        "tmpfs",
+			Source:      "tmpfs",
+			Options: []string{
+				"nosuid",
+				"nodev",
+				"mode=755",
+				"size=65536k",
+			},
+		},
+		{
+			Destination: "/proc/sys",
+			Type:        "tmpfs",
+			Source:      "tmpfs",
+			Options: []string{
+				"nosuid",
+				"noexec",
+				"nodev",
+				"mode=0555",
+				"size=0",
+			},
+		},
+		{
+			Destination: "/proc/sysrq-trigger",
+			Type:        "bind",
+			Source:      "/dev/null",
+			Options: []string{
+				"rbind",
+				"ro",
+			},
+		},
+		{
+			Destination: "/sys/firmware",
+			Type:        "tmpfs",
+			Source:      "tmpfs",
+			Options: []string{
+				"nosuid",
+				"noexec",
+				"nodev",
+				"mode=0555",
+				"size=0",
+			},
+		},
+		{
+			Destination: "/sys/fs/cgroup",
+			Type:        "cgroup2",
+			Source:      "cgroup",
+			Options:     []string{},
+		},
+		{
+			Destination: "/dev/mqueue",
+			Type:        "mqueue",
+			Source:      "mqueue",
+			Options: []string{
+				"nosuid",
+				"noexec",
+				"nodev",
+			},
+		},
+		{
+			Destination: "/dev/shm",
+			Type:        "tmpfs",
+			Source:      "shm",
+			Options: []string{
+				"nosuid",
+				"noexec",
+				"nodev",
+				"mode=1777",
+				"size=67108864",
+			},
+		},
+		{
+			Destination: "/etc/resolv.conf",
+			Type:        "bind",
+			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/resolv.conf", containerId),
+			Options: []string{
+				"rbind",
+				"rprivate",
+			},
+		},
+		{
+			Destination: "/etc/hostname",
+			Type:        "bind",
+			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hostname", containerId),
+			Options: []string{
+				"rbind",
+				"rprivate",
+			},
+		},
+		{
+			Destination: "/etc/hosts",
+			Type:        "bind",
+			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hosts", containerId),
+			Options: []string{
+				"rbind",
+				"rprivate",
+			},
+		},
+	}
+
+	// user mounts
+	for _, user_mount := range mountList {
+		// validate
+		if hasDeniedSource(user_mount.Source) {
+			return fmt.Errorf("invalid mount source: %s", user_mount.Source)
+		}
+		prerequiredMounts = append(prerequiredMounts, spec.MountObject{
+			Destination: user_mount.Destination,
+			Type:        user_mount.Type,
+			Source:      user_mount.Source,
+			Options:     user_mount.Options,
+		})
+	}
+
+	for _, mountConfig := range prerequiredMounts {
 		var (
-			mountFlags  uintptr
-			mountData   string
-			dataStrTmp  []string
-			hasRPrivate bool
+			mountFlags uintptr
+			mountData  string
+			dataStrTmp []string
 		)
 		if mountConfig.Options != nil {
 			for _, option := range mountConfig.Options {
@@ -285,7 +489,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(rootfs string, mountList []sp
 				case "rbind":
 					mountFlags |= syscall.MS_BIND | syscall.MS_REC
 				case "rprivate":
-					hasRPrivate = true
+					// ignore
 				default:
 					dataStrTmp = append(dataStrTmp, option)
 				}
@@ -293,6 +497,11 @@ func (p *rootContainerEnvPreparer) mountFilesystem(rootfs string, mountList []sp
 			mountData = strings.Join(dataStrTmp, ",")
 		} else {
 			mountFlags = uintptr(0)
+		}
+
+		mountPath, err := securePath(rootfs, mountConfig.Destination)
+		if err != nil {
+			return err
 		}
 
 		// the process differs depending on whether the source to be mounted is a directory or a file.
@@ -308,18 +517,18 @@ func (p *rootContainerEnvPreparer) mountFilesystem(rootfs string, mountList []sp
 
 			if srcInfo.IsDir() { // source: directory
 				// check if target directory is exists
-				if _, err := p.syscallHandler.Stat(rootfs + mountConfig.Destination); p.syscallHandler.IsNotExist(err) {
-					if err := p.syscallHandler.MkdirAll(rootfs+mountConfig.Destination, os.ModePerm); err != nil {
+				if _, err := p.syscallHandler.Stat(mountPath); p.syscallHandler.IsNotExist(err) {
+					if err := p.syscallHandler.MkdirAll(mountPath, os.ModePerm); err != nil {
 						return err
 					}
 				}
 			} else { // source: file
 				// create parent directory if not exists
-				if err := p.syscallHandler.MkdirAll(filepath.Dir(rootfs+mountConfig.Destination), os.ModePerm); err != nil {
+				if err := p.syscallHandler.MkdirAll(filepath.Dir(mountPath), os.ModePerm); err != nil {
 					return err
 				}
-				if _, err := p.syscallHandler.Stat(rootfs + mountConfig.Destination); p.syscallHandler.IsNotExist(err) {
-					f, err := p.syscallHandler.OpenFile(rootfs+mountConfig.Destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+				if _, err := p.syscallHandler.Stat(mountPath); p.syscallHandler.IsNotExist(err) {
+					f, err := p.syscallHandler.OpenFile(mountPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 					if err != nil {
 						return err
 					}
@@ -328,8 +537,8 @@ func (p *rootContainerEnvPreparer) mountFilesystem(rootfs string, mountList []sp
 			}
 		} else {
 			// check if target directory is exists
-			if _, err := p.syscallHandler.Stat(rootfs + mountConfig.Destination); p.syscallHandler.IsNotExist(err) {
-				if err := p.syscallHandler.MkdirAll(rootfs+mountConfig.Destination, os.ModePerm); err != nil {
+			if _, err := p.syscallHandler.Stat(mountPath); p.syscallHandler.IsNotExist(err) {
+				if err := p.syscallHandler.MkdirAll(mountPath, os.ModePerm); err != nil {
 					return err
 				}
 			}
@@ -338,7 +547,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(rootfs string, mountList []sp
 		// mount
 		if err := p.syscallHandler.Mount(
 			mountConfig.Source,
-			rootfs+mountConfig.Destination,
+			mountPath,
 			mountConfig.Type,
 			mountFlags,
 			mountData,
@@ -346,17 +555,14 @@ func (p *rootContainerEnvPreparer) mountFilesystem(rootfs string, mountList []sp
 			return err
 		}
 
-		// if rprivate is specified, change propagation to private
-		if hasRPrivate {
-			if err := p.syscallHandler.Mount(
-				"",
-				rootfs+mountConfig.Destination,
-				"",
-				syscall.MS_PRIVATE|syscall.MS_REC,
-				"",
-			); err != nil {
-				return err
-			}
+		if err := p.syscallHandler.Mount(
+			"",
+			mountPath,
+			"",
+			syscall.MS_PRIVATE|syscall.MS_REC,
+			"",
+		); err != nil {
+			return err
 		}
 	}
 
