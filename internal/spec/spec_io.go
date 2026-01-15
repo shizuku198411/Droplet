@@ -3,7 +3,6 @@ package spec
 import (
 	"droplet/internal/oci"
 	"droplet/internal/utils"
-	"fmt"
 	"path/filepath"
 )
 
@@ -14,111 +13,7 @@ func buildRootSpec(opts ConfigOptions) RootObject {
 }
 
 func buildMountSpec(opts ConfigOptions) []MountObject {
-	// mount
-	// the following device must be mounted:
-	//   /proc, /dev, /dev/pts, /sys, /sys/fs/cgroup, /dev/mqueue, /dev/shm
-	var mounts = []MountObject{
-		{
-			Destination: "/proc",
-			Type:        "proc",
-			Source:      "proc",
-			Options: []string{
-				"nosuid",
-				"noexec",
-				"nodev",
-			},
-		},
-		{
-			Destination: "/dev",
-			Type:        "tmpfs",
-			Source:      "tmpfs",
-			Options: []string{
-				"nosuid",
-				"strictatime",
-				"mode=755",
-				"size=65536k",
-			},
-		},
-		{
-			Destination: "/dev/pts",
-			Type:        "devpts",
-			Source:      "devpts",
-			Options: []string{
-				"nosuid",
-				"noexec",
-				"newinstance",
-				"ptmxmode=0666",
-				"mode=0620",
-				"gid=5",
-			},
-		},
-		{
-			Destination: "/sys",
-			Type:        "sysfs",
-			Source:      "sysfs",
-			Options: []string{
-				"nosuid",
-				"noexec",
-				"nodev",
-				"ro",
-			},
-		},
-		{
-			Destination: "/sys/fs/cgroup",
-			Type:        "cgroup2",
-			Source:      "cgroup",
-			Options:     []string{},
-		},
-		{
-			Destination: "/dev/mqueue",
-			Type:        "mqueue",
-			Source:      "mqueue",
-			Options: []string{
-				"nosuid",
-				"noexec",
-				"nodev",
-			},
-		},
-		{
-			Destination: "/dev/shm",
-			Type:        "tmpfs",
-			Source:      "shm",
-			Options: []string{
-				"nosuid",
-				"noexec",
-				"nodev",
-				"mode=1777",
-				"size=67108864",
-			},
-		},
-		{
-			Destination: "/etc/resolv.conf",
-			Type:        "bind",
-			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/resolv.conf", opts.Hostname),
-			Options: []string{
-				"rbind",
-				"rprivate",
-			},
-		},
-		{
-			Destination: "/etc/hostname",
-			Type:        "bind",
-			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hostname", opts.Hostname),
-			Options: []string{
-				"rbind",
-				"rprivate",
-			},
-		},
-		{
-			Destination: "/etc/hosts",
-			Type:        "bind",
-			Source:      fmt.Sprintf("/etc/raind/container/%s/etc/hosts", opts.Hostname),
-			Options: []string{
-				"rbind",
-				"rprivate",
-			},
-		},
-	}
+	var mounts = []MountObject{}
 
 	// user mounts
 	for _, user_mount := range opts.Mounts {
