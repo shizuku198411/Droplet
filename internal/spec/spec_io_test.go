@@ -211,7 +211,7 @@ func TestBuildLinuxSpec_Success(t *testing.T) {
 				},
 			},
 		},
-		AppArmorProfile: "droplet-default",
+		AppArmorProfile: "raind-default",
 		Namespaces: []NamespaceObject{
 			{
 				Type: "mount",
@@ -418,7 +418,7 @@ func TestBuildSpec_Success(t *testing.T) {
 					},
 				},
 			},
-			AppArmorProfile: "droplet-default",
+			AppArmorProfile: "raind-default",
 			Namespaces: []NamespaceObject{
 				{
 					Type: "mount",
@@ -604,7 +604,7 @@ func TestLoadConfigFile_Success(t *testing.T) {
 					},
 				},
 			},
-			AppArmorProfile: "droplet-default",
+			AppArmorProfile: "raind-default",
 			Namespaces: []NamespaceObject{
 				{
 					Type: "mount",

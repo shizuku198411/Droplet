@@ -148,7 +148,7 @@ func buildLinuxSpec(opts ConfigOptions) LinuxSpecObject {
 				},
 			},
 		},
-		AppArmorProfile: "droplet-default",
+		AppArmorProfile: "raind-default",
 		Namespaces:      []NamespaceObject{},
 	}
 
