@@ -7,6 +7,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/urfave/cli/v2 v2.27.7
+	golang.org/x/sys v0.40.0
 )
 
 require (

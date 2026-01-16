@@ -44,9 +44,41 @@ type NamespaceObject struct {
 	Type string `json:"type"`
 }
 
+type SeccompArgObject struct {
+	Index    uint    `json:"index"`
+	Value    uint64  `json:"value"`
+	Op       string  `json:"op"`
+	ValueTwo *uint64 `json:"valueTwo,omitempty"`
+}
+
+type SeccompFilterObject struct {
+	Architectures []string `json:"architectures,omitempty"`
+	Caps          []string `json:"caps,omitempty"`
+	MinKernel     string   `json:"minkernel,omitempty"`
+}
+
+type SeccompSyscallObject struct {
+	Names    []string             `json:"names"`
+	Action   string               `json:"action"`
+	ErrnoRet *uint32              `json:"errnoRet,omitempty"`
+	Args     []SeccompArgObject   `json:"args,omitempty"`
+	Comment  string               `json:"comment,omitempty"`
+	Include  *SeccompFilterObject `json:"includes,omitempty"`
+	Excludes *SeccompFilterObject `json:"excludes,omitempty"`
+}
+
+type SeccompObject struct {
+	DefaultAction   string                 `json:"defaultAction"`
+	DefaultErrnoRet *uint32                `json:"defaultErrnoRet,omitempty"`
+	Architectures   []string               `json:"architectures,omitempty"`
+	Flags           []string               `json:"flags,omitempty"`
+	Syscalls        []SeccompSyscallObject `json:"syscalls,omitempty"`
+}
+
 type LinuxSpecObject struct {
 	Resources  ResourceObject    `json:"resources"`
 	Namespaces []NamespaceObject `json:"namespaces"`
+	Seccomp    *SeccompObject    `json:"seccomp,omitempty"`
 }
 
 type AnnotationObject struct {

@@ -399,7 +399,7 @@ func TestMountFilesystem_Success(t *testing.T) {
 
 	// == assert ==
 	// Mount() call time: 32
-	assert.Equal(t, 32, len(mockKernelSyscall.mountCalls))
+	assert.Equal(t, 34, len(mockKernelSyscall.mountCalls))
 
 	// error is nil
 	assert.Nil(t, err)
