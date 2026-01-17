@@ -1,0 +1,307 @@
+package container
+
+import (
+	"droplet/internal/utils"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"os"
+	"path/filepath"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/creack/pty"
+)
+
+func NewContainerShim() *ContainerShim {
+	return &ContainerShim{
+		specLoader:     newFileSpecLoader(),
+		commandFactory: &utils.ExecCommandFactory{},
+	}
+}
+
+type ContainerShim struct {
+	specLoader     specLoader
+	commandFactory utils.CommandFactory
+}
+
+func (c *ContainerShim) Execute(containerId string, fifo string, entrypoint []string) error {
+	// 1. load config.json
+	spec, err := c.specLoader.loadFile(containerId)
+	if err != nil {
+		return err
+	}
+
+	// 2. pty
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		return err
+	}
+
+	// 3. console socket listen
+	sockPath := utils.SockPath(containerId)
+	ln, err := net.Listen("unix", sockPath)
+	if err != nil {
+		return err
+	}
+
+	// open log
+	shimLog, err := os.OpenFile(utils.ShimLogPath(containerId), os.O_CREATE|os.O_WRONLY, 0640)
+	if err != nil {
+		return err
+	}
+	defer shimLog.Close()
+	logger := log.New(shimLog, "shim: ", log.LstdFlags|log.Lmicroseconds)
+	consoleLog, err := os.OpenFile(utils.ConsoleLogPath(containerId), os.O_CREATE|os.O_WRONLY, 0640)
+	if err != nil {
+		return err
+	}
+	defer consoleLog.Close()
+
+	// 4. prepare init subcommand
+	initArgs := append([]string{"init", containerId, fifo}, entrypoint...)
+	cmd := c.commandFactory.Command(os.Args[0], initArgs...)
+	// set stdio to tty
+	cmd.SetStdin(tty)
+	cmd.SetStdout(tty)
+	cmd.SetStderr(tty)
+	// apply SysProcAttr
+	nsConfig := buildNamespaceConfig(spec)
+	procAttr := buildProcAttrForRootContainer(nsConfig)
+	sysProcAttr := buildSysProcAttr(procAttr)
+	sysProcAttr.Setsid = true
+	sysProcAttr.Setctty = true
+	sysProcAttr.Ctty = 0
+	cmd.SetSysProcAttr(sysProcAttr)
+
+	// 5. execute init subcommand
+	if err := cmd.Start(); err != nil {
+		logger.Printf("init start failed: %v", err)
+		return err
+	}
+	initPid := cmd.Pid()
+	logger.Printf("init started pid=%d", initPid)
+
+	// 6. create pidfile
+	if err := c.writeInitPid(containerId, initPid); err != nil {
+		logger.Printf("writeInitPid failed: %v", err)
+		return err
+	}
+
+	// 6. close tty
+	_ = tty.Close()
+
+	// 7. accept and proxy
+	//go c.acceptAndProxyLoop(ln, ptmx)
+	h := newHub(ptmx, consoleLog, logger)
+	h.startPump()
+	go c.acceptLoop(ln, h, logger)
+
+	// 8. wait init process
+	//err = cmd.Wait()
+	waitErr := cmd.Wait()
+	logger.Printf("init exited: %v", waitErr)
+
+	_ = ln.Close()
+	_ = os.Remove(sockPath)
+
+	return waitErr
+}
+
+// WriteInitPid atomically writes initPid to pidfile.
+//
+// Atomicity strategy:
+//  1. create temp file in same dir
+//  2. write content, fsync temp file
+//  3. close
+//  4. rename temp -> final (POSIX atomic in same filesystem)
+//  5. fsync dir
+func (c *ContainerShim) writeInitPid(containerId string, initPid int) error {
+	if initPid <= 0 {
+		return fmt.Errorf("invalid init pid: %d", initPid)
+	}
+
+	pidPath := utils.InitPidFilePath(containerId)
+	dir := filepath.Dir(pidPath)
+
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("mkdir container dir: %w", err)
+	}
+
+	// Create temp file in same directory for atomic rename.
+	tmp, err := os.CreateTemp(dir, ".init.pid.*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp pidfile: %w", err)
+	}
+
+	tmpName := tmp.Name()
+	// cleanup on failure
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}()
+
+	content := []byte(strconv.Itoa(initPid) + "\n")
+
+	if _, err := tmp.Write(content); err != nil {
+		return fmt.Errorf("write temp pidfile: %w", err)
+	}
+
+	// Ensure file content is flushed to disk.
+	if err := tmp.Sync(); err != nil {
+		return fmt.Errorf("sync temp pidfile: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp pidfile: %w", err)
+	}
+
+	// Atomic replace.
+	if err := os.Rename(tmpName, pidPath); err != nil {
+		return fmt.Errorf("rename pidfile: %w", err)
+	}
+
+	// Best-effort fsync directory for crash consistency.
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+
+	return nil
+}
+
+func (c *ContainerShim) readFramesAndApply(r io.Reader, ptmx *os.File) error {
+	h := make([]byte, 1+4)
+	for {
+		if _, err := io.ReadFull(r, h); err != nil {
+			return err
+		}
+		typ := h[0]
+		n := binary.BigEndian.Uint32(h[1:5])
+
+		// safety limit (e.g. 8MB)
+		if n > 8*1024*1024 {
+			return fmt.Errorf("frame too large: %d", n)
+		}
+
+		payload := make([]byte, n)
+		if n > 0 {
+			if _, err := io.ReadFull(r, payload); err != nil {
+				return err
+			}
+		}
+
+		switch typ {
+		case frameData:
+			if len(payload) > 0 {
+				if _, err := ptmx.Write(payload); err != nil {
+					return err
+				}
+			}
+		case frameResize:
+			if len(payload) != 4 {
+				continue
+			}
+			rows := binary.BigEndian.Uint16(payload[0:2])
+			cols := binary.BigEndian.Uint16(payload[2:4])
+			_ = pty.Setsize(ptmx, &pty.Winsize{Rows: rows, Cols: cols})
+		default:
+			// unknown frame -> ignore
+		}
+	}
+}
+
+func (c *ContainerShim) acceptLoop(ln net.Listener, h *hub, logger *log.Logger) {
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+			if logger != nil {
+				logger.Printf("accept error: %v", err)
+			}
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if logger != nil {
+			logger.Printf("attach connected")
+		}
+
+		h.attach(conn)
+
+		// conn -> ptmx (framed)
+		go func(cc net.Conn) {
+			_ = c.readFramesAndApply(cc, h.ptmx)
+			h.detach(cc)
+			_ = cc.Close()
+			if logger != nil {
+				logger.Printf("attach disconnected")
+			}
+		}(conn)
+	}
+}
+
+type hub struct {
+	ptmx *os.File
+
+	mu      sync.Mutex
+	conn    net.Conn // nil if detached
+	console *os.File // console.log
+	logger  *log.Logger
+}
+
+func newHub(ptmx *os.File, console *os.File, logger *log.Logger) *hub {
+	return &hub{ptmx: ptmx, console: console, logger: logger}
+}
+
+func (h *hub) attach(c net.Conn) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// single attach only: close previous
+	if h.conn != nil {
+		_ = h.conn.Close()
+	}
+	h.conn = c
+}
+
+func (h *hub) detach(c net.Conn) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.conn == c {
+		h.conn = nil
+	}
+}
+
+func (h *hub) startPump() {
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := h.ptmx.Read(buf)
+			if n > 0 {
+				// 1) 常に console.log へ書く
+				if h.console != nil {
+					_, _ = h.console.Write(buf[:n])
+				}
+
+				// 2) attach 中なら conn にも書く
+				h.mu.Lock()
+				c := h.conn
+				h.mu.Unlock()
+				if c != nil {
+					_, _ = c.Write(buf[:n])
+				}
+			}
+			if err != nil {
+				if h.logger != nil {
+					h.logger.Printf("ptmx read end: %v", err)
+				}
+				return
+			}
+		}
+	}()
+}

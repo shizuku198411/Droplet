@@ -237,6 +237,7 @@ func TestContainerInitExecutor_ExecuteInit_Success(t *testing.T) {
 	}
 	mockContainerInitExecutor := &containerInitExecutor{
 		commandFactory: mockExecCommandFactory,
+		syscallHandler: &mockKernelSyscall{},
 	}
 	containerId := "12345"
 	fifo := "exec.fifo"
@@ -273,6 +274,7 @@ func TestContainerInitExecutor_ExecuteInit_StartError(t *testing.T) {
 	}
 	mockContainerInitExecutor := &containerInitExecutor{
 		commandFactory: mockExecCommandFactory,
+		syscallHandler: &mockKernelSyscall{},
 	}
 	containerId := "12345"
 	fifo := "exec.fifo"

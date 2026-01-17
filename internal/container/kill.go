@@ -57,23 +57,36 @@ func (c *ContainerKill) Kill(opt KillOption) error {
 		return fmt.Errorf("container: %s not running.", opt.ContainerId)
 	}
 
-	// 2. retrieve pid from state.json
+	// 2. retrieve pid and shimpid from state.json
 	containerPid, containerPidErr := c.containerStatusManager.GetPidFromId(opt.ContainerId)
 	if containerPidErr != nil {
 		return containerPidErr
+	}
+	shimPid, shimPidErr := c.containerStatusManager.GetShimPidFromId(opt.ContainerId)
+	if shimPidErr != nil {
+		return shimPidErr
 	}
 
 	// 3. send signal to pid
 	if err := c.syscallHandler.Kill(containerPid, signalMap[opt.Signal]); err != nil {
 		return err
 	}
+	// if shim pid > 0, the container created with interactive mode
+	// clean up files for shim
+	if shimPid > 0 {
+		if err := c.cleanupShim(opt.ContainerId); err != nil {
+			return err
+		}
+	}
 
 	// 4. update status file
 	//      status = stopped
 	//      pid = 0
+	//		shimPid = 0
 	if err := c.containerStatusManager.UpdateStatus(
 		opt.ContainerId,
 		status.STOPPED,
+		0,
 		0,
 	); err != nil {
 		return err
@@ -93,5 +106,17 @@ func (c *ContainerKill) Kill(opt KillOption) error {
 		return err
 	}
 
+	return nil
+}
+
+func (c *ContainerKill) cleanupShim(containerId string) error {
+	// remove tty.sock
+	if err := c.syscallHandler.Remove(utils.SockPath(containerId)); err != nil {
+		return err
+	}
+	// remove init.pid
+	if err := c.syscallHandler.Remove(utils.InitPidFilePath(containerId)); err != nil {
+		return err
+	}
 	return nil
 }

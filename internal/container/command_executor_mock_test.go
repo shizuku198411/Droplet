@@ -63,6 +63,10 @@ type mockExecCmd struct {
 	// SetSysProcAttr
 	setSysProcAttrCallFlag bool
 	setSysProcAttrAttr     *syscall.SysProcAttr
+
+	// ExtraFile()
+	extraFileCallFlag bool
+	extraFileFile     []*os.File
 }
 
 func (m *mockExecCmd) Start() error {
@@ -108,6 +112,11 @@ func (m *mockExecCmd) SetStdin(r io.Reader) {
 func (m *mockExecCmd) SetSysProcAttr(attr *syscall.SysProcAttr) {
 	m.setSysProcAttrCallFlag = true
 	m.setSysProcAttrAttr = attr
+}
+
+func (m *mockExecCmd) SetExtraFiles(files []*os.File) {
+	m.extraFileCallFlag = true
+	m.extraFileFile = files
 }
 
 type mockKernelSyscall struct {

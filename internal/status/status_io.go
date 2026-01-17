@@ -18,9 +18,10 @@ type ContainerStatusManager interface {
 	CreateStatusFile(containerId string, pid int, status ContainerStatus, rootfs string, bundle string, annotation spec.AnnotationObject) error
 	RemoveStatusFile(containerId string) error
 	ReadStatusFile(containerId string) (string, error)
-	UpdateStatus(containerId string, status ContainerStatus, pid int) error
+	UpdateStatus(containerId string, status ContainerStatus, pid int, shimPid int) error
 	GetPidFromId(containerId string) (int, error)
 	GetStatusFromId(containerId string) (ContainerStatus, error)
+	GetShimPidFromId(containerId string) (int, error)
 	ListContainers() ([]StatusObject, error)
 }
 
@@ -57,6 +58,7 @@ func (h *StatusHandler) CreateStatusFile(containerId string, pid int, status Con
 		Id:         containerId,
 		Status:     status.String(),
 		Pid:        pid,
+		ShimPid:    0,
 		Rootfs:     rootfs,
 		Bundle:     bundle,
 		Annotaion:  annotation,
@@ -116,7 +118,7 @@ func (h *StatusHandler) ReadStatusFile(containerId string) (string, error) {
 //
 // If status is in the valid range, it is written. If pid is non-negative,
 // it replaces the existing PID.
-func (h *StatusHandler) UpdateStatus(containerId string, status ContainerStatus, pid int) error {
+func (h *StatusHandler) UpdateStatus(containerId string, status ContainerStatus, pid int, shimPid int) error {
 	stateFilePath := utils.ContainerStatePath(containerId)
 	// load status file
 	var statusObject StatusObject
@@ -130,6 +132,9 @@ func (h *StatusHandler) UpdateStatus(containerId string, status ContainerStatus,
 	}
 	if pid >= 0 {
 		statusObject.Pid = pid
+	}
+	if shimPid >= 0 {
+		statusObject.ShimPid = shimPid
 	}
 
 	// write status file
@@ -149,8 +154,17 @@ func (h *StatusHandler) GetPidFromId(containerId string) (int, error) {
 	if err := utils.ReadJsonFile(stateFilePath, &statusObject); err != nil {
 		return -1, err
 	}
-
 	return statusObject.Pid, nil
+}
+
+func (h *StatusHandler) GetShimPidFromId(containerId string) (int, error) {
+	stateFilePath := utils.ContainerStatePath(containerId)
+	// load status file
+	var statusObject StatusObject
+	if err := utils.ReadJsonFile(stateFilePath, &statusObject); err != nil {
+		return -1, err
+	}
+	return statusObject.ShimPid, nil
 }
 
 // GetStatusFromId returns the current ContainerStatus for the given
@@ -197,7 +211,7 @@ func (h *StatusHandler) recomputeStatus(containerId string, pid int, currentStat
 	if currentStatus == RUNNING {
 		alive, _ := h.pidAlive(pid)
 		if !alive {
-			if err := h.UpdateStatus(containerId, STOPPED, 0); err != nil {
+			if err := h.UpdateStatus(containerId, STOPPED, 0, 0); err != nil {
 				return err
 			}
 		}

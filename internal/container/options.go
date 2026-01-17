@@ -4,6 +4,7 @@ package container
 type CreateOption struct {
 	ContainerId  string
 	PrintPidFlag bool
+	TtyFlag      bool
 }
 
 // init options
@@ -21,14 +22,14 @@ type StartOption struct {
 // run options
 type RunOption struct {
 	ContainerId  string
-	Interactive  bool
+	Tty          bool
 	PrintPidFlag bool
 }
 
 // exec options
 type ExecOption struct {
 	ContainerId string
-	Interactive bool
+	Tty         bool
 	Entrypoint  []string
 }
 
@@ -40,5 +41,10 @@ type KillOption struct {
 
 // delete options
 type DeleteOption struct {
+	ContainerId string
+}
+
+// attach options
+type AttachOption struct {
 	ContainerId string
 }

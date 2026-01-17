@@ -85,6 +85,7 @@ func (c *ContainerStart) Execute(opt StartOption) error {
 		opt.ContainerId,
 		status.RUNNING,
 		-1, // no update
+		-1, // no update
 	); err != nil {
 		return err
 	}

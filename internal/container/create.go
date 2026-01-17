@@ -1,8 +1,12 @@
 package container
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"droplet/internal/hook"
 	"droplet/internal/spec"
@@ -32,6 +36,7 @@ func NewContainerCreator() *ContainerCreator {
 func newContainerInitExecutor() *containerInitExecutor {
 	return &containerInitExecutor{
 		commandFactory: &utils.ExecCommandFactory{},
+		syscallHandler: utils.NewSyscallHandler(),
 	}
 }
 
@@ -109,9 +114,31 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 	}
 
 	// 5. execute init subcommand
-	initPid, err := c.processExecutor.executeInit(opt.ContainerId, spec, fifo)
-	if err != nil {
-		return err
+	var (
+		initPid int
+		shimPid int
+	)
+	if opt.TtyFlag {
+		// cleanup old files before execute shim
+		if err := c.cleanupShimFile(opt.ContainerId); err != nil {
+			return err
+		}
+		pid, err := c.processExecutor.executeShim(opt.ContainerId, spec, fifo)
+		if err != nil {
+			return err
+		}
+		shimPid = pid
+		// wait for pidfile from shim
+		initPid, err = c.waitInitPid(opt.ContainerId, 3*time.Second, 20*time.Millisecond)
+		if err != nil {
+			return err
+		}
+	} else {
+		pid, err := c.processExecutor.executeInit(opt.ContainerId, spec, fifo)
+		if err != nil {
+			return err
+		}
+		initPid = pid
 	}
 
 	// output when init process has been created
@@ -140,6 +167,7 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 		opt.ContainerId,
 		status.CREATED,
 		initPid,
+		shimPid,
 	); err != nil {
 		return err
 	}
@@ -161,6 +189,7 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 // replaced by alternative implementations if needed.
 type processExecutor interface {
 	executeInit(containerId string, spec spec.Spec, fifo string) (int, error)
+	executeShim(containerId string, spec spec.Spec, fifo string) (int, error)
 }
 
 // containerInitExecutor is the default implementation of processExecutor.
@@ -169,6 +198,7 @@ type processExecutor interface {
 // passing the spec's process args as the container entrypoint.
 type containerInitExecutor struct {
 	commandFactory utils.CommandFactory
+	syscallHandler utils.KernelSyscallHandler
 }
 
 // executeInit starts the init process and returns its PID.
@@ -184,7 +214,14 @@ func (c *containerInitExecutor) executeInit(containerId string, spec spec.Spec, 
 	// prepare init subcommand
 	initArgs := append([]string{"init", containerId, fifo}, entrypoint...)
 	cmd := c.commandFactory.Command(os.Args[0], initArgs...)
-	// TODO: set stdout/stderr to log files
+	// set stdout/stderr to log files
+	logPath := utils.InitLogPath(containerId)
+	f, err := c.syscallHandler.OpenFile(logPath, os.O_CREATE|os.O_WRONLY, 0640)
+	if err != nil {
+		return -1, err
+	}
+	cmd.SetStdout(f)
+	cmd.SetStderr(f)
 
 	// apply SysProcAttr
 	nsConfig := buildNamespaceConfig(spec)
@@ -198,4 +235,90 @@ func (c *containerInitExecutor) executeInit(containerId string, spec spec.Spec, 
 	}
 
 	return cmd.Pid(), nil
+}
+
+func (c *containerInitExecutor) executeShim(containerId string, spec spec.Spec, fifo string) (int, error) {
+	// retrieve entrypoint from spec
+	entrypoint := spec.Process.Args
+
+	// prepare shim subcommand
+	shimArgs := append([]string{"shim", containerId, fifo}, entrypoint...)
+	cmd := c.commandFactory.Command(os.Args[0], shimArgs...)
+
+	// execute init subcommand
+	if err := cmd.Start(); err != nil {
+		return -1, err
+	}
+
+	return cmd.Pid(), nil
+}
+
+func (c *ContainerCreator) waitInitPid(containerId string, timeout time.Duration, pollInterval time.Duration) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return c.waitInitPidContext(ctx, containerId, pollInterval)
+}
+
+// WaitInitPidContext is the context-aware variant.
+func (c *ContainerCreator) waitInitPidContext(ctx context.Context, containerId string, pollInterval time.Duration) (int, error) {
+	if pollInterval <= 0 {
+		pollInterval = 20 * time.Millisecond
+	}
+
+	pidPath := utils.InitPidFilePath(containerId)
+
+	// Use ticker for polling.
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	// Try immediately once (fast path).
+	if pid, ok := c.tryReadPidFile(pidPath); ok {
+		return pid, nil
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			// include last error context if desired; minimal version keeps it simple
+			return -1, fmt.Errorf("wait init pid timeout: %w", ctx.Err())
+		case <-ticker.C:
+			if pid, ok := c.tryReadPidFile(pidPath); ok {
+				return pid, nil
+			}
+		}
+	}
+}
+
+// tryReadPidFile reads pidfile and parses an int PID.
+// Returns (pid, true) only when fully valid.
+// Any transient failure returns (_, false).
+func (c *ContainerCreator) tryReadPidFile(path string) (int, bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return -1, false
+	}
+
+	s := strings.TrimSpace(string(b))
+	if s == "" {
+		return -1, false
+	}
+
+	pid64, err := strconv.ParseInt(s, 10, 0)
+	if err != nil {
+		return -1, false
+	}
+	pid := int(pid64)
+	if pid <= 0 {
+		return -1, false
+	}
+
+	return pid, true
+}
+
+func (c *ContainerCreator) cleanupShimFile(containerId string) error {
+	// remove sockefile
+	_ = os.Remove(utils.SockPath(containerId))
+	// remove pid file
+	_ = os.Remove(utils.InitPidFilePath(containerId))
+	return nil
 }

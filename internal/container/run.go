@@ -100,7 +100,7 @@ func (c *ContainerRun) Run(opt RunOption) error {
 	initArgs := append([]string{"init", opt.ContainerId, fifo}, entrypoint...)
 	cmd := c.commandFactory.Command(os.Args[0], initArgs...)
 	// set stdout/stderr/stdin
-	if opt.Interactive {
+	if opt.Tty {
 		cmd.SetStdout(os.Stdout)
 		cmd.SetStderr(os.Stderr)
 		cmd.SetStdin(os.Stdin)
@@ -142,10 +142,12 @@ func (c *ContainerRun) Run(opt RunOption) error {
 	// 9. update state.json
 	//      status = created
 	//      pid    = init pid
+	//		shimPid = 0
 	if err := c.containerStatusManager.UpdateStatus(
 		opt.ContainerId,
 		status.CREATED,
 		initPid,
+		0,
 	); err != nil {
 		return err
 	}
@@ -179,6 +181,7 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		opt.ContainerId,
 		status.RUNNING,
 		-1, // no update
+		-1, // no update
 	); err != nil {
 		return err
 	}
@@ -192,7 +195,7 @@ func (c *ContainerRun) Run(opt RunOption) error {
 	}
 
 	// 15. wait init process
-	if opt.Interactive {
+	if opt.Tty {
 		if err := cmd.Wait(); err != nil {
 			return err
 		}
@@ -202,6 +205,7 @@ func (c *ContainerRun) Run(opt RunOption) error {
 		if err := c.containerStatusManager.UpdateStatus(
 			opt.ContainerId,
 			status.STOPPED,
+			0,
 			0,
 		); err != nil {
 			return err

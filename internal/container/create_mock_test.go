@@ -12,6 +12,14 @@ type mockContainerInitExecutor struct {
 	executeInitFifo        string
 	executeInitPid         int
 	executeInitErr         error
+
+	// executeShim()
+	executeShimCallFlag    bool
+	executeShimContainerId string
+	executeShimSpec        spec.Spec
+	executeShimFifo        string
+	executeShimPid         int
+	executeShimErr         error
 }
 
 func (m *mockContainerInitExecutor) executeInit(containerId string, spec spec.Spec, fifo string) (int, error) {
@@ -20,4 +28,12 @@ func (m *mockContainerInitExecutor) executeInit(containerId string, spec spec.Sp
 	m.executeInitSpec = spec
 	m.executeInitFifo = fifo
 	return m.executeInitPid, m.executeInitErr
+}
+
+func (m *mockContainerInitExecutor) executeShim(containerId string, spec spec.Spec, fifo string) (int, error) {
+	m.executeShimCallFlag = true
+	m.executeShimContainerId = containerId
+	m.executeShimSpec = spec
+	m.executeShimFifo = fifo
+	return m.executeShimPid, m.executeShimErr
 }

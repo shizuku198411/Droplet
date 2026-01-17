@@ -17,6 +17,11 @@ func commandCreate() *cli.Command {
 				Hidden: true,
 				Value:  false,
 			},
+			&cli.BoolFlag{
+				Name:    "tty",
+				Aliases: []string{"t"},
+				Value:   false,
+			},
 		},
 		Action: runCreate,
 	}
@@ -26,12 +31,14 @@ func runCreate(ctx *cli.Context) error {
 	// retrieve container ID
 	containerId := ctx.Args().Get(0)
 	pidPrintFlag := ctx.Bool("print-pid")
+	ttyFlag := ctx.Bool("tty")
 
 	containerCreator := container.NewContainerCreator()
 	err := containerCreator.Create(
 		container.CreateOption{
 			ContainerId:  containerId,
 			PrintPidFlag: pidPrintFlag,
+			TtyFlag:      ttyFlag,
 		},
 	)
 

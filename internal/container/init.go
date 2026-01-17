@@ -22,6 +22,7 @@ func NewContainerInit() *ContainerInit {
 		specLoader:           newFileSpecLoader(),
 		containerEnvPreparer: newRootContainerEnvPrepare(),
 		syscallHandler:       utils.NewSyscallHandler(),
+		appArmorHandler:      NewAppArmorManager(),
 	}
 }
 
@@ -34,9 +35,8 @@ func NewContainerInit() *ContainerInit {
 // execution environments.
 func newRootContainerEnvPrepare() *rootContainerEnvPreparer {
 	return &rootContainerEnvPreparer{
-		syscallHandler:  utils.NewSyscallHandler(),
-		seccompHandler:  NewSeccompManager(),
-		appArmorHandler: NewAppArmorManager(),
+		syscallHandler: utils.NewSyscallHandler(),
+		seccompHandler: NewSeccompManager(),
 	}
 }
 
@@ -51,6 +51,7 @@ type ContainerInit struct {
 	specLoader           specLoader
 	containerEnvPreparer containerEnvPreparer
 	syscallHandler       utils.SyscallHandler
+	appArmorHandler      AppArmorHandler
 }
 
 // Execute performs the init sequence for the container.
@@ -83,7 +84,10 @@ func (c *ContainerInit) Execute(opt InitOption) error {
 		return err
 	}
 
-	// 4. replace process image with the container entrypoint
+	// 4. apply AppArmor Profile Onexec
+	_ = c.appArmorHandler.ApplyAAProfileOnExec(spec.LinuxSpec.AppArmorProfile)
+
+	// 5. replace process image with the container entrypoint
 	if err := c.syscallHandler.Exec(entrypoint[0], entrypoint, slices.Concat(os.Environ(), spec.Process.Env)); err != nil {
 		return err
 	}
@@ -111,9 +115,8 @@ type containerEnvPreparer interface {
 // capability adjustments, etc.) may be added to this implementation as
 // container initialization evolves.
 type rootContainerEnvPreparer struct {
-	syscallHandler  utils.KernelSyscallHandler
-	seccompHandler  SeccompHandler
-	appArmorHandler AppArmorHandler
+	syscallHandler utils.KernelSyscallHandler
+	seccompHandler SeccompHandler
 }
 
 // prepare sets up the runtime environment for the root container process
@@ -168,11 +171,7 @@ func (p *rootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) e
 	if err := p.setCapability(spec.Process.Capabilities); err != nil {
 		return err
 	}
-	// 10. apply AppArmor
-	if err := p.appArmorHandler.ApplyAAProfile(spec.LinuxSpec.AppArmorProfile); err != nil {
-		return err
-	}
-	// 11. install seccomp (NO_NEW_PRIVS + filter)
+	// 10. install seccomp (NO_NEW_PRIVS + filter)
 	if err := p.seccompHandler.InstallDenyFilter(*spec.LinuxSpec.Seccomp); err != nil {
 		return err
 	}

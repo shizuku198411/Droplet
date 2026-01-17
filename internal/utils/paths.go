@@ -40,7 +40,26 @@ func FifoPath(containerId string) string {
 	return filepath.Join(ContainerDir(containerId), "exec.fifo")
 }
 
+func SockPath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "tty.sock")
+}
+
+// InitPidFilePath returns pidfile path under container dir.
+func InitPidFilePath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "init.pid")
+}
+
 // cgroup path
 func CgroupPath(containerId string) string {
 	return filepath.Join(cgroupRootDir, containerId)
+}
+
+func ShimLogPath(id string) string {
+	return filepath.Join(ContainerDir(id), "shim.log")
+}
+func ConsoleLogPath(id string) string {
+	return filepath.Join(ContainerDir(id), "console.log")
+}
+func InitLogPath(id string) string {
+	return filepath.Join(ContainerDir(id), "init.log")
 }

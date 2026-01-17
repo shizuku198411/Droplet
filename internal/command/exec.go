@@ -13,9 +13,9 @@ func commandExec() *cli.Command {
 		ArgsUsage: "<container-id> <command>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
-				Name:    "interactive",
-				Usage:   "Execute entrypoint in interative mode",
-				Aliases: []string{"i"},
+				Name:    "tty",
+				Usage:   "attach tty to container",
+				Aliases: []string{"t"},
 			},
 		},
 		Action: runExec,
@@ -29,13 +29,13 @@ func runExec(ctx *cli.Context) error {
 	args := ctx.Args().Slice()
 	// options
 	// interactive
-	interactive := ctx.Bool("interactive")
+	tty := ctx.Bool("tty")
 	entrypoint := args[1:]
 
 	containerExec := container.NewContainerExec()
 	err := containerExec.Exec(container.ExecOption{
 		ContainerId: containerId,
-		Interactive: interactive,
+		Tty:         tty,
 		Entrypoint:  entrypoint,
 	})
 	if err != nil {
