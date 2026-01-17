@@ -22,9 +22,12 @@ Droplet currently supports:
 - Generation and parsing of OCI-compliant `config.json`
 - Mounting filesystems and user-specified directories
 - CPU and memory resource limits (cgroups)
-- Capability set configuration
 - Network interface configuration
 - OCI lifecycle hooks
+- Capability set configuration
+- Seccomp
+- AppArmor
+- Pseudo-terminals (shim/pty)
 
 ## Build
 
