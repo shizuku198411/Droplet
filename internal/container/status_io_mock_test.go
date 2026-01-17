@@ -32,6 +32,7 @@ type mockStatusHandler struct {
 	updateStatusContainerId string
 	updateStatusStatus      status.ContainerStatus
 	updateStatusPid         int
+	updateStatusShimPid     int
 	updateStatusErr         error
 
 	// GetPidFromId()
@@ -39,6 +40,12 @@ type mockStatusHandler struct {
 	getPirFromIdContainerId string
 	getPidFromIdPid         int
 	getPidFromIdErr         error
+
+	// GetShimPidFromId()
+	getShimFromIdCallFlag    bool
+	getShimFromIdContainerId string
+	getShimFromIdPid         int
+	getShimFromIdErr         error
 
 	// GetStatusFromId()
 	getStatusFromIdCallFlag    bool
@@ -73,11 +80,12 @@ func (m *mockStatusHandler) ReadStatusFile(containerId string) (string, error) {
 	return m.readStatusDataStr, m.readStatusErr
 }
 
-func (m *mockStatusHandler) UpdateStatus(containerId string, status status.ContainerStatus, pid int) error {
+func (m *mockStatusHandler) UpdateStatus(containerId string, status status.ContainerStatus, pid int, shimPid int) error {
 	m.updateStatusCallFlag = true
 	m.updateStatusContainerId = containerId
 	m.updateStatusStatus = status
 	m.updateStatusPid = pid
+	m.updateStatusShimPid = shimPid
 	return m.updateStatusErr
 }
 
@@ -85,6 +93,12 @@ func (m *mockStatusHandler) GetPidFromId(containerId string) (int, error) {
 	m.getPidFromIdCallFlag = true
 	m.getPirFromIdContainerId = containerId
 	return m.getPidFromIdPid, m.getPidFromIdErr
+}
+
+func (m *mockStatusHandler) GetShimPidFromId(containerId string) (int, error) {
+	m.getShimFromIdCallFlag = true
+	m.getShimFromIdContainerId = containerId
+	return m.getShimFromIdPid, m.getShimFromIdErr
 }
 
 func (m *mockStatusHandler) GetStatusFromId(containerId string) (status.ContainerStatus, error) {

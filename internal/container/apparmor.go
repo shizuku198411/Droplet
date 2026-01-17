@@ -2,13 +2,16 @@ package container
 
 import (
 	"droplet/internal/utils"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"syscall"
 )
 
 type AppArmorHandler interface {
 	ApplyAAProfile(profile string) error
+	ApplyAAProfileOnExec(profile string) error
 }
 
 func NewAppArmorManager() *AppArmorManager {
@@ -56,6 +59,36 @@ func (m *AppArmorManager) ApplyAAProfile(profile string) error {
 		return fmt.Errorf("AppArmor changeprofile to %q failed: %w", profile, err)
 	}
 
+	return nil
+}
+
+func (m *AppArmorManager) ApplyAAProfileOnExec(profile string) error {
+	if !m.isAAEnabled() {
+		return nil
+	}
+
+	profile = strings.TrimSpace(profile)
+	if profile == "" {
+		return nil
+	}
+
+	// AppArmor procfs interface for onexec:
+	// /proc/self/attr/exec
+	const aaAttrExec = "/proc/self/attr/exec"
+
+	f, err := m.syscallHandler.OpenFile(aaAttrExec, os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("open %s failed: %w", aaAttrExec, err)
+	}
+	defer f.Close()
+
+	cmd := "exec " + profile
+	if _, err := f.WriteString(cmd); err != nil {
+		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) {
+			return nil
+		}
+		return fmt.Errorf("AppArmor exec profile %q failed: %w", profile, err)
+	}
 	return nil
 }
 

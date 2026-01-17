@@ -11,6 +11,7 @@ type StatusObject struct {
 	Id         string                `json:"id"`
 	Status     string                `json:"status"`
 	Pid        int                   `json:"pid"`
+	ShimPid    int                   `json:"shimPid"`
 	Rootfs     string                `json:"rootfs"`
 	Bundle     string                `json:"bundle"`
 	Annotaion  spec.AnnotationObject `json:"annotations"`

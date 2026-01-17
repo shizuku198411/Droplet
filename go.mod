@@ -3,11 +3,13 @@ module droplet
 go 1.25.5
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/stretchr/testify v1.11.1
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/urfave/cli/v2 v2.27.7
 	golang.org/x/sys v0.40.0
+	golang.org/x/term v0.39.0
 )
 
 require (

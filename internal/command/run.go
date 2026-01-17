@@ -13,9 +13,9 @@ func commandRun() *cli.Command {
 		ArgsUsage: "<container-id>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
-				Name:    "interactive",
-				Usage:   "Run the container in interactive mode",
-				Aliases: []string{"i"},
+				Name:    "tty",
+				Usage:   "attach tty to container",
+				Aliases: []string{"t"},
 			},
 			&cli.BoolFlag{
 				Name:   "print-pid",
@@ -32,7 +32,7 @@ func runRun(ctx *cli.Context) error {
 	containerId := ctx.Args().Get(0)
 	// options
 	// interactive
-	interactive := ctx.Bool("interactive")
+	tty := ctx.Bool("tty")
 	// print-pid
 	printPidFlag := ctx.Bool("print-pid")
 
@@ -40,7 +40,7 @@ func runRun(ctx *cli.Context) error {
 	err := containerRun.Run(
 		container.RunOption{
 			ContainerId:  containerId,
-			Interactive:  interactive,
+			Tty:          tty,
 			PrintPidFlag: printPidFlag,
 		},
 	)

@@ -19,6 +19,8 @@ func NewApp() *cli.App {
 			commandSpec(),
 			commandList(),
 			commandInit(),
+			commandShim(),
+			commandAttach(),
 		},
 	}
 

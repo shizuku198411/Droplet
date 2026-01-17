@@ -111,9 +111,11 @@ func (c *ContainerDelete) killInitProcess(containerId string) error {
 	// 2. update status file
 	//      status = stopped
 	//      pid = 0
+	//		shimPid = 0
 	if err := c.containerStatusManager.UpdateStatus(
 		containerId,
 		status.STOPPED,
+		0,
 		0,
 	); err != nil {
 		return err

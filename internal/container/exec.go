@@ -67,7 +67,7 @@ func (c *ContainerExec) Exec(opt ExecOption) error {
 	nsenterCommand := []string{"nsenter", "-t", strconv.Itoa(containerPid), "--all"}
 	commandStr := slices.Concat(nsenterCommand, opt.Entrypoint)
 	cmd := c.commandFactory.Command(commandStr[0], commandStr[1:]...)
-	if opt.Interactive {
+	if opt.Tty {
 		cmd.SetStdout(os.Stdout)
 		cmd.SetStderr(os.Stderr)
 		cmd.SetStdin(os.Stdin)
@@ -79,7 +79,7 @@ func (c *ContainerExec) Exec(opt ExecOption) error {
 	}
 
 	// 5. wait entrypoint if exec in interactive
-	if opt.Interactive {
+	if opt.Tty {
 		if err := cmd.Wait(); err != nil {
 			return err
 		}

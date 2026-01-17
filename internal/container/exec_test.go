@@ -24,7 +24,7 @@ func TestContainerExec_Exec_InteractiveSuccess(t *testing.T) {
 	// == arrange ==
 	opt := ExecOption{
 		ContainerId: "12345",
-		Interactive: true,
+		Tty:         true,
 		Entrypoint:  []string{"/bin/sh"},
 	}
 	mockExecCmd := &mockExecCmd{}
@@ -66,7 +66,7 @@ func TestContainerExec_Exec_NonInteractiveSuccess(t *testing.T) {
 	// == arrange ==
 	opt := ExecOption{
 		ContainerId: "12345",
-		Interactive: false,
+		Tty:         false,
 		Entrypoint:  []string{"/bin/sh"},
 	}
 	mockExecCmd := &mockExecCmd{}
@@ -108,7 +108,7 @@ func TestContainerExec_Exec_GetStatusError(t *testing.T) {
 	// == arrange ==
 	opt := ExecOption{
 		ContainerId: "12345",
-		Interactive: false,
+		Tty:         false,
 		Entrypoint:  []string{"/bin/sh"},
 	}
 	mockExecCmd := &mockExecCmd{}
@@ -136,7 +136,7 @@ func TestContainerExec_Exec_StatusNotRunningError(t *testing.T) {
 	// == arrange ==
 	opt := ExecOption{
 		ContainerId: "12345",
-		Interactive: false,
+		Tty:         false,
 		Entrypoint:  []string{"/bin/sh"},
 	}
 	mockExecCmd := &mockExecCmd{}
@@ -164,7 +164,7 @@ func TestContainerExec_Exec_GetPidError(t *testing.T) {
 	// == arrange ==
 	opt := ExecOption{
 		ContainerId: "12345",
-		Interactive: false,
+		Tty:         false,
 		Entrypoint:  []string{"/bin/sh"},
 	}
 	mockExecCmd := &mockExecCmd{}
@@ -196,7 +196,7 @@ func TestContainerExec_Exec_StartError(t *testing.T) {
 	// == arrange ==
 	opt := ExecOption{
 		ContainerId: "12345",
-		Interactive: false,
+		Tty:         false,
 		Entrypoint:  []string{"/bin/sh"},
 	}
 	mockExecCmd := &mockExecCmd{
@@ -228,7 +228,7 @@ func TestContainerExec_Exec_WaitError(t *testing.T) {
 	// == arrange ==
 	opt := ExecOption{
 		ContainerId: "12345",
-		Interactive: true,
+		Tty:         true,
 		Entrypoint:  []string{"/bin/sh"},
 	}
 	mockExecCmd := &mockExecCmd{

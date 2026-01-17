@@ -48,6 +48,7 @@ type CommandExecutor interface {
 	SetStderr(w io.Writer)
 	SetStdin(r io.Reader)
 	SetSysProcAttr(attr *syscall.SysProcAttr)
+	SetExtraFiles(files []*os.File)
 }
 
 // execCmd is the concrete commandExecutor backed by exec.Cmd.
@@ -104,6 +105,10 @@ func (e *ExecCmd) SetStdin(r io.Reader) {
 // SetSysProcAttr assigns the provided SysProcAttr to the underlying exec.Cmd.
 func (e *ExecCmd) SetSysProcAttr(attr *syscall.SysProcAttr) {
 	e.cmd.SysProcAttr = attr
+}
+
+func (e *ExecCmd) SetExtraFiles(files []*os.File) {
+	e.cmd.ExtraFiles = files
 }
 
 // syscallHandler abstracts the operation of replacing the current

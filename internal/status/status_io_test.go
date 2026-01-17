@@ -84,7 +84,7 @@ func TestUpdateStatus_StatusUpdateSuccess(t *testing.T) {
 	containerStatusHandler := &StatusHandler{}
 
 	// == act ==
-	err := containerStatusHandler.UpdateStatus(containerId, updateStatus, -1)
+	err := containerStatusHandler.UpdateStatus(containerId, updateStatus, -1, -1)
 
 	// == assert ==
 	// file content veryfi
@@ -135,7 +135,7 @@ func TestUpdateStatus_PidUpdateSuccess(t *testing.T) {
 	containerStatusHandler := &StatusHandler{}
 
 	// == act ==
-	err := containerStatusHandler.UpdateStatus(containerId, -1, updatePid)
+	err := containerStatusHandler.UpdateStatus(containerId, -1, updatePid, -1)
 
 	// == assert ==
 	// file content veryfi
@@ -187,7 +187,7 @@ func TestUpdateStatus_StatusAndPidUpdateSuccess(t *testing.T) {
 	containerStatusHandler := &StatusHandler{}
 
 	// == act ==
-	err := containerStatusHandler.UpdateStatus(containerId, updateStatus, updatePid)
+	err := containerStatusHandler.UpdateStatus(containerId, updateStatus, updatePid, -1)
 
 	// == assert ==
 	// file content verify

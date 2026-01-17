@@ -55,6 +55,7 @@ func TestContainerInit_Execute_Success(t *testing.T) {
 		specLoader:           mockSpecLoader,
 		containerEnvPreparer: mockRootContainerEnvPreparer,
 		syscallHandler:       mockKernelSyscall,
+		appArmorHandler:      &mockAppArmorManager{},
 	}
 
 	// == act ==
@@ -87,6 +88,7 @@ func TestContainerInit_Execute_ReadFifoError(t *testing.T) {
 		specLoader:           mockSpecLoader,
 		containerEnvPreparer: mockRootContainerEnvPreparer,
 		syscallHandler:       mockKernelSyscall,
+		appArmorHandler:      &mockAppArmorManager{},
 	}
 
 	// == act ==
@@ -111,6 +113,7 @@ func TestContainerInit_Execute_LoadFileError(t *testing.T) {
 		specLoader:           mockSpecLoader,
 		containerEnvPreparer: mockRootContainerEnvPreparer,
 		syscallHandler:       mockKernelSyscall,
+		appArmorHandler:      &mockAppArmorManager{},
 	}
 
 	// == act ==
@@ -135,6 +138,7 @@ func TestContainerInit_Execute_PrepareError(t *testing.T) {
 		specLoader:           mockSpecLoader,
 		containerEnvPreparer: mockRootContainerEnvPreparer,
 		syscallHandler:       mockKernelSyscall,
+		appArmorHandler:      &mockAppArmorManager{},
 	}
 
 	// == act ==
@@ -159,6 +163,7 @@ func TestContainerInit_Execute_ExecError(t *testing.T) {
 		specLoader:           mockSpecLoader,
 		containerEnvPreparer: mockRootContainerEnvPreparer,
 		syscallHandler:       mockKernelSyscall,
+		appArmorHandler:      &mockAppArmorManager{},
 	}
 
 	// == act ==
