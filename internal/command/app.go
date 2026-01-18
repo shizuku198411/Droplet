@@ -16,6 +16,7 @@ func NewApp() *cli.App {
 			commandState(),
 			commandRun(),
 			commandExec(),
+			commandExecShim(),
 			commandSpec(),
 			commandList(),
 			commandInit(),

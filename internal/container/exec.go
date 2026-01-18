@@ -17,6 +17,7 @@ func NewContainerExec() *ContainerExec {
 	return &ContainerExec{
 		commandFactory:         utils.NewCommandFactory(),
 		containerStatusManager: status.NewStatusHandler(),
+		syscallHandler:         utils.NewSyscallHandler(),
 	}
 }
 
@@ -34,6 +35,7 @@ func NewContainerExec() *ContainerExec {
 type ContainerExec struct {
 	commandFactory         utils.CommandFactory
 	containerStatusManager status.ContainerStatusManager
+	syscallHandler         utils.KernelSyscallHandler
 }
 
 // Exec runs the given entrypoint inside the target container.
@@ -64,25 +66,48 @@ func (c *ContainerExec) Exec(opt ExecOption) error {
 	}
 
 	// 3. prepare entrypoint with nsenter
+	if opt.Tty {
+		if err := c.executeShim(containerPid, opt); err != nil {
+			return err
+		}
+	} else {
+		if err := c.executeNsenter(containerPid, opt); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *ContainerExec) executeNsenter(containerPid int, opt ExecOption) error {
 	nsenterCommand := []string{"nsenter", "-t", strconv.Itoa(containerPid), "--all"}
 	commandStr := slices.Concat(nsenterCommand, opt.Entrypoint)
 	cmd := c.commandFactory.Command(commandStr[0], commandStr[1:]...)
-	if opt.Tty {
-		cmd.SetStdout(os.Stdout)
-		cmd.SetStderr(os.Stderr)
-		cmd.SetStdin(os.Stdin)
+	// set stdout/stderr to log files
+	logPath := utils.ExecLogPath(opt.ContainerId)
+	f, err := c.syscallHandler.OpenFile(logPath, os.O_CREATE|os.O_WRONLY, 0640)
+	if err != nil {
+		return err
 	}
+	cmd.SetStdout(f)
+	cmd.SetStderr(f)
 
-	// 4. execute entrypoint
+	// execute entrypoint
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 
-	// 5. wait entrypoint if exec in interactive
-	if opt.Tty {
-		if err := cmd.Wait(); err != nil {
-			return err
-		}
+	return nil
+}
+
+func (c *ContainerExec) executeShim(containerPid int, opt ExecOption) error {
+	entrypoint := opt.Entrypoint
+	shimArgs := append([]string{"exec-shim", opt.ContainerId, strconv.Itoa(containerPid)}, entrypoint...)
+	cmd := c.commandFactory.Command(os.Args[0], shimArgs...)
+
+	// execute exec-shim subcommand
+	if err := cmd.Start(); err != nil {
+		return err
 	}
 
 	return nil

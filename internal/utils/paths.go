@@ -44,6 +44,10 @@ func SockPath(containerId string) string {
 	return filepath.Join(ContainerDir(containerId), "tty.sock")
 }
 
+func ExecSockPath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "exec_tty.sock")
+}
+
 // InitPidFilePath returns pidfile path under container dir.
 func InitPidFilePath(containerId string) string {
 	return filepath.Join(ContainerDir(containerId), "init.pid")
@@ -54,12 +58,26 @@ func CgroupPath(containerId string) string {
 	return filepath.Join(cgroupRootDir, containerId)
 }
 
-func ShimLogPath(id string) string {
-	return filepath.Join(ContainerDir(id), "shim.log")
+func ShimLogPath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "shim.log")
 }
-func ConsoleLogPath(id string) string {
-	return filepath.Join(ContainerDir(id), "console.log")
+
+func ExecShimLogPath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "exec_shim.log")
 }
-func InitLogPath(id string) string {
-	return filepath.Join(ContainerDir(id), "init.log")
+
+func ConsoleLogPath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "console.log")
+}
+
+func ExecConsoleLogPath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "exec_console.log")
+}
+
+func InitLogPath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "init.log")
+}
+
+func ExecLogPath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "exec.log")
 }
