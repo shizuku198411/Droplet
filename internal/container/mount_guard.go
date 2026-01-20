@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // mount path validation for protecting path traversal
@@ -23,6 +25,19 @@ func securePath(rootfs, dest string) (string, error) {
 		return "", fmt.Errorf("destination escapes rootfs: %q -> %q", dest, fullPath)
 	}
 	return fullPath, nil
+}
+
+func secureMount(source, target, fstype string, flags uintptr, data string) error {
+	// 1. bind mount
+	if err := syscall.Mount(source, target, fstype, flags, data); err != nil {
+		return err
+	}
+
+	// 2. change mount type
+	if err := syscall.Mount("", target, "", syscall.MS_PRIVATE|syscall.MS_REC, ""); err != nil {
+		return err
+	}
+	return nil
 }
 
 // source mount validation
@@ -51,15 +66,105 @@ func isSymlink(source string) (bool, error) {
 	return fi.Mode()&os.ModeSymlink != 0, nil
 }
 
-func secureMount(source, target, fstype string, flags uintptr, data string) error {
-	// 1. bind mount
-	if err := syscall.Mount(source, target, fstype, flags, data); err != nil {
-		return err
+type WalkLimits struct {
+	MaxDepth   int
+	MaxEntries int
+}
+
+func rejectSymlinkInDirTreeFd(root string, lim WalkLimits) error {
+	if lim.MaxDepth <= 0 {
+		lim.MaxDepth = 64
+	}
+	if lim.MaxEntries <= 0 {
+		lim.MaxEntries = 200_000
 	}
 
-	// 2. change mount type
-	if err := syscall.Mount("", target, "", syscall.MS_PRIVATE|syscall.MS_REC, ""); err != nil {
-		return err
+	// Root: reject symlink and open as directory without following symlinks.
+	rootFd, err := unix.Open(root, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return fmt.Errorf("open root failed: %s: %w", root, err)
 	}
-	return nil
+	defer unix.Close(rootFd)
+
+	var st unix.Stat_t
+	if err := unix.Fstat(rootFd, &st); err != nil {
+		return fmt.Errorf("fstat root failed: %s: %w", root, err)
+	}
+	modeType := st.Mode & unix.S_IFMT
+	if modeType == unix.S_IFLNK {
+		return fmt.Errorf("source:%s is symlink", root)
+	}
+	if modeType != unix.S_IFDIR {
+		// root is a regular file/device etc (not a directory). We only care that it's not a symlink.
+		return nil
+	}
+
+	// Re-open as directory FD (O_DIRECTORY) for readdir.
+	unix.Close(rootFd)
+	rootFd, err = unix.Open(root, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return fmt.Errorf("open root dir failed: %s: %w", root, err)
+	}
+	defer unix.Close(rootFd)
+
+	entries := 0
+
+	var walk func(dirfd int, absPath string, depth int) error
+	walk = func(dirfd int, absPath string, depth int) error {
+		if depth > lim.MaxDepth {
+			return fmt.Errorf("mount source tree too deep: %s (depth>%d)", absPath, lim.MaxDepth)
+		}
+
+		// Read directory entries from dirfd
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := unix.ReadDirent(dirfd, buf)
+			if err != nil {
+				return fmt.Errorf("readdir failed: %s: %w", absPath, err)
+			}
+			if n == 0 {
+				return nil
+			}
+
+			// Parse entry names. d_type is not used; we will fstatat each entry.
+			names := make([]string, 0, 128)
+			_, _, names = unix.ParseDirent(buf[:n], -1, names)
+
+			for _, name := range names {
+				if name == "." || name == ".." {
+					continue
+				}
+
+				entries++
+				if entries > lim.MaxEntries {
+					return fmt.Errorf("mount source tree too large: %s (entries>%d)", absPath, lim.MaxEntries)
+				}
+
+				var st unix.Stat_t
+				if err := unix.Fstatat(dirfd, name, &st, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+					return fmt.Errorf("fstatat failed: %s/%s: %w", absPath, name, err)
+				}
+
+				t := st.Mode & unix.S_IFMT
+				if t == unix.S_IFLNK {
+					return fmt.Errorf("symlink found under mount source: %s", filepath.Join(absPath, name))
+				}
+
+				if t == unix.S_IFDIR {
+					// open child dir without following symlinks
+					childFd, err := unix.Openat(dirfd, name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+					if err != nil {
+						return fmt.Errorf("openat dir failed: %s/%s: %w", absPath, name, err)
+					}
+					err = walk(childFd, filepath.Join(absPath, name), depth+1)
+					unix.Close(childFd)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return walk(rootFd, filepath.Clean(root), 0)
 }

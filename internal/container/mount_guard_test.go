@@ -109,3 +109,79 @@ func TestIsSymlink_IsSymlink(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, res)
 }
+
+func TestRejectSymlinkInDirTreeFd_NoSymlinkExist(t *testing.T) {
+	// == arrange ==
+	tmp := t.TempDir()
+	// create dir
+	dirpath := filepath.Join(tmp, "dir1", "dir2")
+	_ = os.MkdirAll(dirpath, 0755)
+	// create file
+	filepath_1 := filepath.Join(tmp, "dir1", "test.txt")
+	filepath_2 := filepath.Join(tmp, "dir1", "dir2", "test.txt")
+	_, _ = os.Create(filepath_1)
+	_, _ = os.Create(filepath_2)
+
+	// == act ==
+	err := rejectSymlinkInDirTreeFd(tmp, WalkLimits{})
+
+	// == assert ==
+	assert.Nil(t, err)
+}
+
+func TestRejectSymlinkInDirTreeFd_SymlinkExist(t *testing.T) {
+	// == arrange ==
+	tmp := t.TempDir()
+	// create dir
+	dirpath := filepath.Join(tmp, "dir1", "dir2")
+	_ = os.MkdirAll(dirpath, 0755)
+	// create file
+	filepath_1 := filepath.Join(tmp, "dir1", "test.txt")
+	filepath_2 := filepath.Join(tmp, "dir1", "dir2", "test.txt")
+	symlink := filepath.Join(tmp, "dir1", "dir2", "symlink")
+	_, _ = os.Create(filepath_1)
+	_, _ = os.Create(filepath_2)
+	_ = os.Symlink("/dummy", symlink)
+
+	// == act ==
+	err := rejectSymlinkInDirTreeFd(tmp, WalkLimits{})
+
+	// == assert ==
+	assert.NotNil(t, err)
+}
+
+func TestRejectSymlinkInDirTreeFd_MaxDepth(t *testing.T) {
+	// == arrange ==
+	tmp := t.TempDir()
+	// create dir
+	dirpath := filepath.Join(tmp, "dir1", "dir2", "dir3", "dir4")
+	_ = os.MkdirAll(dirpath, 0755)
+	// create file
+	filepath_1 := filepath.Join(dirpath, "test.txt")
+	_, _ = os.Create(filepath_1)
+
+	// == act ==
+	err := rejectSymlinkInDirTreeFd(tmp, WalkLimits{MaxDepth: 3})
+
+	// == assert ==
+	assert.NotNil(t, err)
+}
+
+func TestRejectSymlinkInDirTreeFd_MaxEntries(t *testing.T) {
+	// == arrange ==
+	tmp := t.TempDir()
+	// create dir
+	dirpath := filepath.Join(tmp, "dir1", "dir2", "dir3", "dir4")
+	_ = os.MkdirAll(dirpath, 0755)
+	// create file
+	filepath_1 := filepath.Join(dirpath, "test.txt")
+	filepath_2 := filepath.Join(dirpath, "test2.txt")
+	_, _ = os.Create(filepath_1)
+	_, _ = os.Create(filepath_2)
+
+	// == act ==
+	err := rejectSymlinkInDirTreeFd(tmp, WalkLimits{MaxEntries: 1})
+
+	// == assert ==
+	assert.NotNil(t, err)
+}

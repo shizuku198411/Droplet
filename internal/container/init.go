@@ -209,49 +209,91 @@ type rootContainerEnvPreparer struct {
 //
 // If any step fails, the error is returned immediately and the remaining
 // steps are not executed.
-func (p *rootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) error {
+func (p *rootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) (err error) {
+	var (
+		event = "init_prepare"
+		stage string
+	)
+
+	// audit log
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+		_ = logs.RecordAuditLog(logs.AuditRecord{
+			ContainerId: containerId,
+			Event:       event,
+			Stage:       stage,
+			Spec:        &spec,
+			Result:      result,
+			Error:       err,
+		})
+	}()
+
 	// 1. change uid=0(root) inside container
-	if err := p.switchToUserNamespaceRoot(); err != nil {
+	stage = "switch_user"
+	err = p.switchToUserNamespaceRoot()
+	if err != nil {
 		return err
 	}
 	// 2. set hostname
-	if err := p.setHostnameToContainerId(spec.Hostname); err != nil {
+	stage = "set_hostname"
+	err = p.setHostnameToContainerId(spec.Hostname)
+	if err != nil {
 		return err
 	}
 	// 3. set env
-	if err := p.setEnv(spec.Process.Env); err != nil {
+	stage = "set_env"
+	err = p.setEnv(spec.Process.Env)
+	if err != nil {
 		return err
 	}
 	// 4. setup overlay
+	stage = "setup_overlay"
 	if err := p.setupOverlay(spec.Root.Path, spec.Annotations.Image); err != nil {
 		return err
 	}
 	// 5. mount filesystem
-	if err := p.mountFilesystem(containerId, spec.Root.Path, spec.Mounts); err != nil {
+	stage = "mount_filesystem"
+	err = p.mountFilesystem(containerId, spec.Root.Path, spec.Mounts)
+	if err != nil {
 		return err
 	}
 	// 6. mount standard device
-	if err := p.mountStdDevice(spec.Root.Path); err != nil {
+	stage = "mount_stndard_device"
+	err = p.mountStdDevice(spec.Root.Path)
+	if err != nil {
 		return err
 	}
 	// 7. create symbolic link
-	if err := p.createSymbolicLink(spec.Root.Path); err != nil {
+	stage = "create_symlink"
+	err = p.createSymbolicLink(spec.Root.Path)
+	if err != nil {
 		return err
 	}
 	// 8. pivot_root
-	if err := p.pivotRoot(spec.Root.Path); err != nil {
+	stage = "pivot_root"
+	err = p.pivotRoot(spec.Root.Path)
+	if err != nil {
 		return err
 	}
 	// 9. set capability
-	if err := p.setCapability(spec.Process.Capabilities); err != nil {
+	stage = "set_capability"
+	err = p.setCapability(spec.Process.Capabilities)
+	if err != nil {
 		return err
 	}
 	// 10. install seccomp (NO_NEW_PRIVS + filter)
-	if err := p.seccompHandler.InstallDenyFilter(*spec.LinuxSpec.Seccomp); err != nil {
+	stage = "install_seccomp"
+	err = p.seccompHandler.InstallDenyFilter(*spec.LinuxSpec.Seccomp)
+	if err != nil {
 		return err
 	}
 	// 12. change current dir
-	if err := p.syscallHandler.Chdir(spec.Process.Cwd); err != nil {
+	stage = "chdir"
+	err = p.syscallHandler.Chdir(spec.Process.Cwd)
+	if err != nil {
 		return err
 	}
 
@@ -540,6 +582,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 			mountFlags uintptr
 			mountData  string
 			dataStrTmp []string
+			bindFlag   = false
 		)
 		if mountConfig.Options != nil {
 			for _, option := range mountConfig.Options {
@@ -555,6 +598,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 				case "rw":
 					// ignore
 				case "bind":
+					bindFlag = true
 					mountFlags |= syscall.MS_BIND
 				case "strictatime":
 					mountFlags |= syscall.MS_STRICTATIME
@@ -563,6 +607,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 				case "relatime":
 					mountFlags |= syscall.MS_RELATIME
 				case "rbind":
+					bindFlag = true
 					mountFlags |= syscall.MS_BIND | syscall.MS_REC
 				case "rprivate":
 					// ignore
@@ -585,7 +630,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 		// if the source is a directory, the destination directory is checked for existence and created if it does not exist.
 		// if the source is a file, the parent directory is created and an empty file is created.
 		// this process is only bind mount
-		if mountConfig.Type == "bind" {
+		if bindFlag {
 			// validate source type
 			// if source typ is symlink, then deny
 			isLink, err := isSymlink(mountConfig.Source)
@@ -603,6 +648,10 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 			}
 
 			if srcInfo.IsDir() { // source: directory
+				// reject if any symlink exists under source directory tree
+				if err := rejectSymlinkInDirTreeFd(mountConfig.Source, WalkLimits{MaxDepth: 64, MaxEntries: 200_000}); err != nil {
+					return fmt.Errorf("invalid mount source (symlink in tree): %s: %w", mountConfig.Source, err)
+				}
 				// check if target directory is exists
 				if _, err := p.syscallHandler.Stat(mountPath); p.syscallHandler.IsNotExist(err) {
 					if err := p.syscallHandler.MkdirAll(mountPath, os.ModePerm); err != nil {
