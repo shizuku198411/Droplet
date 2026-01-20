@@ -2,6 +2,8 @@ package container
 
 import (
 	"droplet/internal/hook"
+	"droplet/internal/logs"
+	"droplet/internal/spec"
 	"droplet/internal/status"
 	"droplet/internal/utils"
 	"fmt"
@@ -46,35 +48,69 @@ type ContainerKill struct {
 //  4. Update the status file to STOPPED and clear the PID
 //
 // If any step fails, the method stops and returns the error.
-func (c *ContainerKill) Kill(opt KillOption) error {
+func (c *ContainerKill) Kill(opt KillOption) (err error) {
+	var (
+		spec  spec.Spec
+		event = "kill"
+		stage string
+		pid   int
+	)
+
+	// audit log
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+		_ = logs.RecordAuditLog(logs.AuditRecord{
+			ContainerId: opt.ContainerId,
+			Event:       event,
+			Stage:       stage,
+			Spec:        &spec,
+			Pid:         pid,
+			Result:      result,
+			Error:       err,
+		})
+	}()
+
 	// 1. check container status
 	//    if status is not running, return error
-	containerStatus, containerStatusErr := c.containerStatusManager.GetStatusFromId(opt.ContainerId)
-	if containerStatusErr != nil {
-		return containerStatusErr
+	stage = "get_status"
+	containerStatus, err := c.containerStatusManager.GetStatusFromId(opt.ContainerId)
+	if err != nil {
+		return err
 	}
+
+	stage = "check_status"
 	if containerStatus != status.RUNNING {
 		return fmt.Errorf("container: %s not running.", opt.ContainerId)
 	}
 
 	// 2. retrieve pid and shimpid from state.json
-	containerPid, containerPidErr := c.containerStatusManager.GetPidFromId(opt.ContainerId)
-	if containerPidErr != nil {
-		return containerPidErr
+	stage = "get_pid"
+	containerPid, err := c.containerStatusManager.GetPidFromId(opt.ContainerId)
+	if err != nil {
+		return err
 	}
-	shimPid, shimPidErr := c.containerStatusManager.GetShimPidFromId(opt.ContainerId)
-	if shimPidErr != nil {
-		return shimPidErr
+	stage = "get_shim_pid"
+	shimPid, err := c.containerStatusManager.GetShimPidFromId(opt.ContainerId)
+	if err != nil {
+		return err
 	}
 
 	// 3. send signal to pid
-	if err := c.syscallHandler.Kill(containerPid, signalMap[opt.Signal]); err != nil {
+	stage = "send_signal"
+	err = c.syscallHandler.Kill(containerPid, signalMap[opt.Signal])
+	if err != nil {
 		return err
 	}
+
 	// if shim pid > 0, the container created with interactive mode
 	// clean up files for shim
+	stage = "cleanup_shim"
 	if shimPid > 0 {
-		if err := c.cleanupShim(opt.ContainerId); err != nil {
+		err = c.cleanupShim(opt.ContainerId)
+		if err != nil {
 			return err
 		}
 	}
@@ -83,26 +119,31 @@ func (c *ContainerKill) Kill(opt KillOption) error {
 	//      status = stopped
 	//      pid = 0
 	//		shimPid = 0
-	if err := c.containerStatusManager.UpdateStatus(
+	stage = "update_state"
+	err = c.containerStatusManager.UpdateStatus(
 		opt.ContainerId,
 		status.STOPPED,
 		0,
 		0,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
 	// 5. load config.json
-	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	stage = "load_spec"
+	spec, err = c.specLoader.loadFile(opt.ContainerId)
 	if err != nil {
 		return err
 	}
 
 	// 6. HOOK: stopContainer
-	if err := c.containerHookController.RunStopContainerHooks(
+	stage = "hook_stopContainer"
+	err = c.containerHookController.RunStopContainerHooks(
 		opt.ContainerId,
 		spec.Hooks.StopContainer,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 

@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"droplet/internal/spec"
@@ -275,17 +276,33 @@ func parseMountFlag(mounts []string) ([]spec.MountOption, error) {
 		src := parts[0]
 		dst := parts[1]
 
+		var mountType string
+		// check file type
+		fi, err := os.Stat(src)
+		if err != nil {
+			return []spec.MountOption{}, err
+		}
+		if fi.IsDir() {
+			mountType = ""
+		} else {
+			mountType = "bind"
+		}
+
 		// options
 		var opts []string
 		if len(parts) == 3 && parts[2] != "" {
 			opts = strings.Split(parts[2], ",")
 		} else {
-			opts = append(opts, "bind")
+			if fi.IsDir() {
+				opts = append(opts, "bind")
+			} else {
+				opts = append(opts, "rbind", "rprivate")
+			}
 		}
 
 		mountOption = append(mountOption, spec.MountOption{
 			Destination: dst,
-			Type:        "",
+			Type:        mountType,
 			Source:      src,
 			Options:     opts,
 		})

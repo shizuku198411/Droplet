@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"droplet/internal/hook"
+	"droplet/internal/logs"
 	"droplet/internal/spec"
 	"droplet/internal/status"
 	"droplet/internal/utils"
@@ -78,9 +79,34 @@ type ContainerCreator struct {
 //
 // This method performs no low-level work itself and relies entirely on
 // its collaborators. If any step fails, the error is returned immediately.
-func (c *ContainerCreator) Create(opt CreateOption) error {
+func (c *ContainerCreator) Create(opt CreateOption) (err error) {
+	var (
+		spec  spec.Spec
+		event = "create"
+		stage string
+		pid   int
+	)
+
+	// audit log
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+		_ = logs.RecordAuditLog(logs.AuditRecord{
+			ContainerId: opt.ContainerId,
+			Event:       event,
+			Stage:       stage,
+			Pid:         pid,
+			Spec:        &spec,
+			Result:      result,
+			Error:       err,
+		})
+	}()
+
 	// 1. load config.json
-	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	stage = "load_spec"
+	spec, err = c.specSecureLoad(opt.ContainerId)
 	if err != nil {
 		return err
 	}
@@ -88,28 +114,34 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 	// 2. create state.json
 	//      status = creating
 	//      pid = 0
-	if err := c.containerStatusManager.CreateStatusFile(
+	stage = "create_state"
+	err = c.containerStatusManager.CreateStatusFile(
 		opt.ContainerId,
 		0,
 		status.CREATING,
 		spec.Root.Path,
 		utils.ContainerDir(opt.ContainerId),
 		spec.Annotations,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
 	// 3. HOOK: createRuntime
-	if err := c.containerHookController.RunCreateRuntimeHooks(
+	stage = "hook_create_runtime"
+	err = c.containerHookController.RunCreateRuntimeHooks(
 		opt.ContainerId,
 		spec.Hooks.CreateRuntime,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
 	// 4. create fifo
+	stage = "create_fifo"
 	fifo := utils.FifoPath(opt.ContainerId)
-	if err := c.fifoCreator.createFifo(fifo); err != nil {
+	err = c.fifoCreator.createFifo(fifo)
+	if err != nil {
 		return err
 	}
 
@@ -120,67 +152,126 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 	)
 	if opt.TtyFlag {
 		// cleanup old files before execute shim
-		if err := c.cleanupShimFile(opt.ContainerId); err != nil {
+		stage = "cleanup_shim_file"
+		err = c.cleanupShimFile(opt.ContainerId)
+		if err != nil {
 			return err
 		}
-		pid, err := c.processExecutor.executeShim(opt.ContainerId, spec, fifo)
+
+		stage = "execute_shim"
+		pid, err = c.processExecutor.executeShim(opt.ContainerId, spec, fifo)
 		if err != nil {
 			return err
 		}
 		shimPid = pid
+
 		// wait for pidfile from shim
+		stage = "wait_init_pid"
 		initPid, err = c.waitInitPid(opt.ContainerId, 3*time.Second, 20*time.Millisecond)
 		if err != nil {
 			return err
 		}
+		pid = initPid
 	} else {
-		pid, err := c.processExecutor.executeInit(opt.ContainerId, spec, fifo)
+		stage = "execute_init"
+		pid, err = c.processExecutor.executeInit(opt.ContainerId, spec, fifo)
 		if err != nil {
 			return err
 		}
 		initPid = pid
 	}
 
-	// output when init process has been created
-	// if --print-pid is setted, print message with pid
-	// otherwise print message with Container ID
-	if opt.PrintPidFlag {
-		fmt.Printf("create container success. pid: %d\n", initPid)
-	} else {
-		fmt.Printf("create container success. ID: %s\n", opt.ContainerId)
-	}
-
 	// 6. cgroup setup
-	if err := c.containerCgroupPreparer.prepare(opt.ContainerId, spec, initPid); err != nil {
+	stage = "setup_cgroup"
+	err = c.containerCgroupPreparer.prepare(opt.ContainerId, spec, initPid)
+	if err != nil {
 		return err
 	}
 
 	// 7. network setup
-	if err := c.containerNetworkPreparer.prepare(opt.ContainerId, initPid, spec.Annotations); err != nil {
+	stage = "setup_network"
+	err = c.containerNetworkPreparer.prepare(opt.ContainerId, initPid, spec.Annotations)
+	if err != nil {
 		return err
 	}
 
 	// 8. update state.json
 	//      status = created
 	//      pid    = init pid
-	if err := c.containerStatusManager.UpdateStatus(
+	stage = "update_state"
+	err = c.containerStatusManager.UpdateStatus(
 		opt.ContainerId,
 		status.CREATED,
 		initPid,
 		shimPid,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
 	// 9. HOOK: createContainer
-	if err := c.containerHookController.RunCreateContainerHooks(
+	stage = "hook_create_container"
+	err = c.containerHookController.RunCreateContainerHooks(
 		opt.ContainerId,
 		spec.Hooks.CreateContainer,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
-
 	return nil
+}
+
+func (c *ContainerCreator) specSecureLoad(containerId string) (spec.Spec, error) {
+	fileHashPath := utils.ConfigFileHashPath(containerId)
+
+	// 1. calculate current config.json file hash
+	beforeLoadedHash, err := utils.Sha256File(utils.ConfigFilePath(containerId))
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 2. write to file
+	if err := utils.WriteJsonToFile(
+		fileHashPath,
+		spec.SpecHash{
+			Sha256: beforeLoadedHash,
+		},
+	); err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 3. load config.json
+	specFile, err := c.specLoader.loadFile(containerId)
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 4. re-calculate config.json file hash
+	afterLoadedHash, err := utils.Sha256File(utils.ConfigFilePath(containerId))
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 5. load file sha256 from file
+	var specFileHash spec.SpecHash
+	if err := utils.ReadJsonFile(
+		fileHashPath,
+		&specFileHash,
+	); err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 6. assert
+	// protect hash value tampering
+	if beforeLoadedHash != specFileHash.Sha256 {
+		return spec.Spec{}, fmt.Errorf("config.json hash validation failed: expect=%s, got=%s", beforeLoadedHash, specFileHash.Sha256)
+	}
+	// protect config.json tampering
+	if specFileHash.Sha256 != afterLoadedHash {
+		return spec.Spec{}, fmt.Errorf("config.json hash validation failed: expect=%s, got=%s", specFileHash.Sha256, afterLoadedHash)
+	}
+
+	return specFile, nil
 }
 
 // processExecutor defines the behavior for spawning the container init process.

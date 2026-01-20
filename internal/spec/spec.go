@@ -145,3 +145,7 @@ type ImageConfigObject struct {
 	UpperDir   string   `json:"upperDir"`
 	WorkDir    string   `json:"workDir"`
 }
+
+type SpecHash struct {
+	Sha256 string `json:"sha256"`
+}
