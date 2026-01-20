@@ -80,7 +80,7 @@ type ContainerCreator struct {
 // its collaborators. If any step fails, the error is returned immediately.
 func (c *ContainerCreator) Create(opt CreateOption) error {
 	// 1. load config.json
-	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	spec, err := c.specSecureLoad(opt.ContainerId)
 	if err != nil {
 		return err
 	}
@@ -181,6 +181,59 @@ func (c *ContainerCreator) Create(opt CreateOption) error {
 	}
 
 	return nil
+}
+
+func (c *ContainerCreator) specSecureLoad(containerId string) (spec.Spec, error) {
+	fileHashPath := utils.ConfigFileHashPath(containerId)
+
+	// 1. calculate current config.json file hash
+	beforeLoadedHash, err := utils.Sha256File(utils.ConfigFilePath(containerId))
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 2. write to file
+	if err := utils.WriteJsonToFile(
+		fileHashPath,
+		spec.SpecHash{
+			Sha256: beforeLoadedHash,
+		},
+	); err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 3. load config.json
+	specFile, err := c.specLoader.loadFile(containerId)
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 4. re-calculate config.json file hash
+	afterLoadedHash, err := utils.Sha256File(utils.ConfigFilePath(containerId))
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 5. load file sha256 from file
+	var specFileHash spec.SpecHash
+	if err := utils.ReadJsonFile(
+		fileHashPath,
+		&specFileHash,
+	); err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 6. assert
+	// protect hash value tampering
+	if beforeLoadedHash != specFileHash.Sha256 {
+		return spec.Spec{}, fmt.Errorf("config.json hash validation failed: expect=%s, got=%s", beforeLoadedHash, specFileHash.Sha256)
+	}
+	// protect config.json tampering
+	if specFileHash.Sha256 != afterLoadedHash {
+		return spec.Spec{}, fmt.Errorf("config.json hash validation failed: expect=%s, got=%s", specFileHash.Sha256, afterLoadedHash)
+	}
+
+	return specFile, nil
 }
 
 // processExecutor defines the behavior for spawning the container init process.

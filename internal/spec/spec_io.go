@@ -5,6 +5,7 @@ import (
 	"droplet/internal/utils"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 func buildRootSpec(opts ConfigOptions) RootObject {
@@ -29,10 +30,40 @@ func buildMountSpec(opts ConfigOptions) []MountObject {
 	return mounts
 }
 
+func buildProcessEnvSpec(specEnv []string) []string {
+	// env preset
+	envPreset := map[string]string{
+		"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"TERM": "xterm-256color",
+		"LANG": "C.UTF-8",
+	}
+
+	// []string -> map
+	env := map[string]string{}
+	for _, kv := range specEnv {
+		k, v, ok := strings.Cut(kv, "=")
+		if ok && k != "" {
+			env[k] = v
+		}
+	}
+	// set if the preset env is not exist
+	for k, v := range envPreset {
+		if _, ok := env[k]; !ok || strings.TrimSpace(env[k]) == "" {
+			env[k] = v
+		}
+	}
+	// map -> []string
+	newEnv := make([]string, 0, len(env))
+	for k, v := range env {
+		newEnv = append(newEnv, k+"="+v)
+	}
+	return newEnv
+}
+
 func buildProcessSpec(opts ConfigOptions) ProcessObject {
 	return ProcessObject{
 		Cwd:  opts.Process.Cwd,
-		Env:  opts.Process.Env,
+		Env:  buildProcessEnvSpec(opts.Process.Env),
 		Args: opts.Process.Args,
 		Capabilities: CapabilityObject{
 			Bounding: []string{

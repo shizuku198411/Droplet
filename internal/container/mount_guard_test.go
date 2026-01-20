@@ -1,0 +1,111 @@
+package container
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestSecurePath_Success(t *testing.T) {
+	// == arrange ==
+	rootfs := "/etc/raind/container/111111/merged"
+	dest := "/inside/container"
+
+	// == act ==
+	path, err := securePath(rootfs, dest)
+
+	// == assert ==
+	assert.Nil(t, err)
+	assert.Equal(t, "/etc/raind/container/111111/merged/inside/container", path)
+}
+
+func TestSecurePath_IncludeRelativePathError(t *testing.T) {
+	// == arrange ==
+	rootfs := "/etc/raind/container/111111/merged"
+	dest := "/../container"
+
+	// == act ==
+	_, err := securePath(rootfs, dest)
+
+	// == assert ==
+	assert.NotNil(t, err)
+}
+
+func TestHasDeniedSource_Success(t *testing.T) {
+	// == arrange ==
+	source := "/home/user/path"
+
+	// == act ==
+	result := hasDeniedSource(source)
+
+	// == assert ==
+	assert.False(t, result)
+}
+
+func TestHasDeniedSource_IncludeDeniedPath(t *testing.T) {
+	// == arrange ==
+	source_1 := "/root/path"
+	source_2 := "/proc/self"
+	source_3 := "/sys/fs"
+	source_4 := "/dev/pts"
+	source_5 := "/run/user"
+	source_6 := "/var/run/user"
+	source_7 := "/boot/firmware"
+
+	// == act ==
+	res_1 := hasDeniedSource(source_1)
+	res_2 := hasDeniedSource(source_2)
+	res_3 := hasDeniedSource(source_3)
+	res_4 := hasDeniedSource(source_4)
+	res_5 := hasDeniedSource(source_5)
+	res_6 := hasDeniedSource(source_6)
+	res_7 := hasDeniedSource(source_7)
+
+	// == assert ==
+	assert.True(t, res_1)
+	assert.True(t, res_2)
+	assert.True(t, res_3)
+	assert.True(t, res_4)
+	assert.True(t, res_5)
+	assert.True(t, res_6)
+	assert.True(t, res_7)
+}
+
+func TestIsSymlink_NotSymlink(t *testing.T) {
+	// == arrange ==
+	tmp := t.TempDir()
+	// file
+	file := filepath.Join(tmp, "test.txt")
+	fd, _ := os.OpenFile(file, os.O_WRONLY|os.O_CREATE, 0644)
+	fd.Close()
+	// directory
+	dir := filepath.Join(tmp, "test")
+	_ = os.Mkdir(dir, 0755)
+
+	// == act ==
+	res_1, err_1 := isSymlink(file)
+	res_2, err_2 := isSymlink(dir)
+
+	// == assert ==
+	assert.Nil(t, err_1)
+	assert.False(t, res_1)
+	assert.Nil(t, err_2)
+	assert.False(t, res_2)
+}
+
+func TestIsSymlink_IsSymlink(t *testing.T) {
+	// == arrange ==
+	tmp := t.TempDir()
+	// symlink
+	symlink := filepath.Join(tmp, "symlink")
+	_ = os.Symlink("/dummy", symlink)
+
+	// == act ==
+	res, err := isSymlink(symlink)
+
+	// == assert ==
+	assert.Nil(t, err)
+	assert.True(t, res)
+}

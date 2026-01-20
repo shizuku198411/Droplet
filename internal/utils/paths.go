@@ -28,6 +28,10 @@ func ConfigFilePath(containerId string) string {
 	return filepath.Join(ContainerDir(containerId), "config.json")
 }
 
+func ConfigFileHashPath(containerId string) string {
+	return filepath.Join(ContainerDir(containerId), "config_hash.json")
+}
+
 // state path
 func ContainerStatePath(containerId string) string {
 	return filepath.Join(ContainerDir(containerId), "state.json")
@@ -58,26 +62,27 @@ func CgroupPath(containerId string) string {
 	return filepath.Join(cgroupRootDir, containerId)
 }
 
+// logs
 func ShimLogPath(containerId string) string {
-	return filepath.Join(ContainerDir(containerId), "shim.log")
+	return filepath.Join(ContainerDir(containerId), "logs", "shim.log")
 }
 
 func ExecShimLogPath(containerId string) string {
-	return filepath.Join(ContainerDir(containerId), "exec_shim.log")
+	return filepath.Join(ContainerDir(containerId), "logs", "exec_shim.log")
 }
 
 func ConsoleLogPath(containerId string) string {
-	return filepath.Join(ContainerDir(containerId), "console.log")
+	return filepath.Join(ContainerDir(containerId), "logs", "console.log")
 }
 
 func ExecConsoleLogPath(containerId string) string {
-	return filepath.Join(ContainerDir(containerId), "exec_console.log")
+	return filepath.Join(ContainerDir(containerId), "logs", "exec_console.log")
 }
 
 func InitLogPath(containerId string) string {
-	return filepath.Join(ContainerDir(containerId), "init.log")
+	return filepath.Join(ContainerDir(containerId), "logs", "init.log")
 }
 
 func ExecLogPath(containerId string) string {
-	return filepath.Join(ContainerDir(containerId), "exec.log")
+	return filepath.Join(ContainerDir(containerId), "logs", "exec.log")
 }

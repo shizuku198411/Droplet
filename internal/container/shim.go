@@ -1,6 +1,7 @@
 package container
 
 import (
+	"droplet/internal/spec"
 	"droplet/internal/utils"
 	"encoding/binary"
 	"errors"
@@ -31,7 +32,7 @@ type ContainerShim struct {
 
 func (c *ContainerShim) Execute(containerId string, fifo string, entrypoint []string) error {
 	// 1. load config.json
-	spec, err := c.specLoader.loadFile(containerId)
+	spec, err := c.specSecureLoad(containerId)
 	if err != nil {
 		return err
 	}
@@ -110,6 +111,38 @@ func (c *ContainerShim) Execute(containerId string, fifo string, entrypoint []st
 	_ = os.Remove(sockPath)
 
 	return waitErr
+}
+
+func (c *ContainerShim) specSecureLoad(containerId string) (spec.Spec, error) {
+	fileHashPath := utils.ConfigFileHashPath(containerId)
+
+	// 1. load hash string
+	var specFileHash spec.SpecHash
+	if err := utils.ReadJsonFile(
+		fileHashPath,
+		&specFileHash,
+	); err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 2. calculate current config.json file hash
+	currentHash, err := utils.Sha256File(utils.ConfigFilePath(containerId))
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 3. assert
+	if specFileHash.Sha256 != currentHash {
+		return spec.Spec{}, fmt.Errorf("config.json hash validation failed: expect=%s, got=%s", specFileHash.Sha256, currentHash)
+	}
+
+	// 4. load config.json
+	specFile, err := c.specLoader.loadFile(containerId)
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	return specFile, nil
 }
 
 // WriteInitPid atomically writes initPid to pidfile.
