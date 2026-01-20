@@ -2,6 +2,8 @@ package container
 
 import (
 	"droplet/internal/hook"
+	"droplet/internal/logs"
+	"droplet/internal/spec"
 	"droplet/internal/status"
 	"droplet/internal/utils"
 	"fmt"
@@ -51,45 +53,82 @@ type ContainerDelete struct {
 //
 // If any step fails, the error is returned immediately and subsequent
 // steps are not executed.
-func (c *ContainerDelete) Delete(opt DeleteOption) error {
+func (c *ContainerDelete) Delete(opt DeleteOption) (err error) {
+	var (
+		spec  spec.Spec
+		event = "delete"
+		stage string
+		pid   int
+	)
+
+	// audit log
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+		_ = logs.RecordAuditLog(logs.AuditRecord{
+			ContainerId: opt.ContainerId,
+			Event:       event,
+			Stage:       stage,
+			Pid:         pid,
+			Spec:        &spec,
+			Result:      result,
+			Error:       err,
+		})
+	}()
+
 	// 1. check container status
+	stage = "get_status"
 	containerStatus, err := c.containerStatusManager.GetStatusFromId(opt.ContainerId)
 	if err != nil {
 		return err
 	}
+
 	// if status is running, return error
+	stage = "check_status"
 	if containerStatus == status.RUNNING {
 		return fmt.Errorf("container: %s is not stopped. current status: %s", opt.ContainerId, containerStatus)
 	}
+
 	// if status is created, kill init process before delete container
+	stage = "kill_process_before_remove"
 	if containerStatus == status.CREATED {
-		if err := c.killInitProcess(opt.ContainerId); err != nil {
+		err = c.killInitProcess(opt.ContainerId)
+		if err != nil {
 			return fmt.Errorf("kill init process failed: %w", err)
 		}
 	}
 
 	// 2. load config.json
-	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	stage = "load_spec"
+	spec, err = c.specLoader.loadFile(opt.ContainerId)
 	if err != nil {
 		return err
 	}
 
 	// 3. HOOK: poststop
-	if err := c.containerHookController.RunPoststopHooks(
+	stage = "hook_poststop"
+	err = c.containerHookController.RunPoststopHooks(
 		opt.ContainerId,
 		spec.Hooks.Poststop,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
 	// 4. remove state.json
-	if err := c.containerStatusManager.RemoveStatusFile(opt.ContainerId); err != nil {
+	stage = "remove_state"
+	err = c.containerStatusManager.RemoveStatusFile(opt.ContainerId)
+	if err != nil {
 		return err
 	}
 
 	// 5. remove exec.fifo if status is created
+	stage = "remove_fifo"
 	if containerStatus == status.CREATED {
-		if err := c.fifoHandler.removeFifo(utils.FifoPath(opt.ContainerId)); err != nil {
+		err = c.fifoHandler.removeFifo(utils.FifoPath(opt.ContainerId))
+		if err != nil {
 			return err
 		}
 	}

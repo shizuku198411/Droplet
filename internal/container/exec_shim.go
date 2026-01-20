@@ -1,6 +1,8 @@
 package container
 
 import (
+	"droplet/internal/logs"
+	"droplet/internal/spec"
 	"droplet/internal/utils"
 	"encoding/binary"
 	"errors"
@@ -29,8 +31,33 @@ type ContainerExecShim struct {
 	commandFactory utils.CommandFactory
 }
 
-func (c *ContainerExecShim) Execute(containerId string, containerPid string, entrypoint []string) error {
+func (c *ContainerExecShim) Execute(containerId string, containerPid string, entrypoint []string) (err error) {
+	var (
+		spec  spec.Spec
+		event = "exec_shim"
+		stage string
+		pid   int
+	)
+
+	// audit log
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+		_ = logs.RecordAuditLog(logs.AuditRecord{
+			ContainerId: containerId,
+			Event:       event,
+			Stage:       stage,
+			Pid:         pid,
+			Spec:        &spec,
+			Result:      result,
+			Error:       err,
+		})
+	}()
+
 	// open log
+	stage = "open_log"
 	shimLog, err := os.OpenFile(utils.ExecShimLogPath(containerId), os.O_CREATE|os.O_WRONLY, 0640)
 	if err != nil {
 		return err
@@ -39,13 +66,16 @@ func (c *ContainerExecShim) Execute(containerId string, containerPid string, ent
 	logger := log.New(shimLog, "exec_shim: ", log.LstdFlags|log.Lmicroseconds)
 
 	// 1. remove old file
+	stage = "remove_old_socket"
 	sockPath := utils.ExecSockPath(containerId)
-	if err := os.Remove(sockPath); err != nil && !os.IsNotExist(err) {
+	err = os.Remove(sockPath)
+	if err != nil && !os.IsNotExist(err) {
 		logger.Printf("sock path remove failed: %v", err)
 		return err
 	}
 
 	// 2. pty
+	stage = "open_pty"
 	ptmx, tty, err := pty.Open()
 	if err != nil {
 		return err
@@ -53,6 +83,7 @@ func (c *ContainerExecShim) Execute(containerId string, containerPid string, ent
 	defer func() { _ = os.Remove(sockPath) }()
 
 	// 3. console socket listen
+	stage = "listen_socket"
 	ln, err := net.Listen("unix", sockPath)
 	if err != nil {
 		logger.Printf("unix socket listen failed: %v", err)
@@ -74,11 +105,14 @@ func (c *ContainerExecShim) Execute(containerId string, containerPid string, ent
 	})
 
 	// 5. execute nsenter command
-	if err := cmd.Start(); err != nil {
+	stage = "exec_command"
+	err = cmd.Start()
+	if err != nil {
 		logger.Printf("nsenter failed: %v", err)
 		return err
 	}
 	nsenterPid := cmd.Pid()
+	pid = nsenterPid
 	logger.Printf("nsenter started pid=%d", nsenterPid)
 
 	// 6. close tty
@@ -90,7 +124,6 @@ func (c *ContainerExecShim) Execute(containerId string, containerPid string, ent
 		return err
 	}
 	defer consoleLog.Close()
-	//go c.acceptAndProxyLoop(ln, ptmx)
 	h := newExecHub(ptmx, consoleLog, logger)
 	h.startPump()
 	go c.acceptLoop(ln, h, logger)

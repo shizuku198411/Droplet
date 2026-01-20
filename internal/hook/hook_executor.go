@@ -2,12 +2,16 @@ package hook
 
 import (
 	"bytes"
+	"droplet/internal/logs"
 	"droplet/internal/spec"
 	"droplet/internal/status"
 	"droplet/internal/utils"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
+	"strings"
+	"time"
 )
 
 // ContainerHookController defines the interface for executing lifecycle hooks
@@ -126,6 +130,8 @@ func (c *HookController) runHookList(containerId string, phase string, hookList 
 	}
 
 	for i, hook := range hookList {
+		start := time.Now()
+
 		if hook.Path == "" {
 			return fmt.Errorf("hook %s[%d]: empty path", phase, i)
 		}
@@ -137,17 +143,59 @@ func (c *HookController) runHookList(containerId string, phase string, hookList 
 		}
 
 		// prepare hook environment
+		var stderr bytes.Buffer
 		cmd := c.commandFactory.Command(hook.Path, args...)
 		cmd.SetEnv(append(os.Environ(), hook.Env...))
 		cmd.SetStdin(bytes.NewReader([]byte(stateJson)))
 		cmd.SetStdout(os.Stdout)
-		cmd.SetStderr(os.Stderr)
+		cmd.SetStderr(&stderr)
 
 		// execute hook
-		if err := cmd.Run(); err != nil {
+		err := cmd.Run()
+		exitCode := 0
+		if err != nil {
+			if ee, ok := err.(*exec.ExitError); ok {
+				exitCode = ee.ExitCode()
+			} else {
+				exitCode = -1
+			}
+		}
+		st := stderr.Bytes()
+		if len(st) > 1024 {
+			st = st[len(st)-1024:]
+		}
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+
+		duration := time.Since(start)
+
+		// audit log
+		rec := logs.HookResult{
+			Phase:       phase,
+			Path:        hook.Path,
+			ArgsSHA256:  utils.Sha256Bytes([]byte(strings.Join(args, ","))),
+			StdinSHA256: utils.Sha256Bytes([]byte(stateJson)),
+			StdinBytes:  len([]byte(stateJson)),
+			ExitCode:    exitCode,
+			DurationMS:  duration.Milliseconds(),
+			StderrTail:  string(st),
+		}
+
+		_ = logs.RecordHookAuditLog(logs.AuditHookRecord{
+			ContainerId: containerId,
+			Event:       "hook",
+			Hook:        rec,
+			Result:      result,
+		})
+
+		if err != nil {
 			return fmt.Errorf("hook %s[%d] failed: %w", phase, i, err)
 		}
+
 	}
+
 	return nil
 }
 
@@ -177,6 +225,8 @@ func (c *HookController) runHookListWithNsenter(containerId string, phase string
 	}
 
 	for i, hook := range hookList {
+		start := time.Now()
+
 		if hook.Path == "" {
 			return fmt.Errorf("hook %s[%d]: empty path", phase, i)
 		}
@@ -197,14 +247,54 @@ func (c *HookController) runHookListWithNsenter(containerId string, phase string
 		}
 		nsenterArgs = append(nsenterArgs, args...)
 
+		var stderr bytes.Buffer
 		cmd := c.commandFactory.Command("/usr/bin/nsenter", nsenterArgs...)
 		cmd.SetEnv(append(os.Environ(), hook.Env...))
 		cmd.SetStdin(bytes.NewReader([]byte(stateJson)))
 		cmd.SetStdout(os.Stdout)
-		cmd.SetStderr(os.Stderr)
+		cmd.SetStderr(&stderr)
 
 		// execute hook
-		if err := cmd.Run(); err != nil {
+		err := cmd.Run()
+		exitCode := 0
+		if err != nil {
+			if ee, ok := err.(*exec.ExitError); ok {
+				exitCode = ee.ExitCode()
+			} else {
+				exitCode = -1
+			}
+		}
+		st := stderr.Bytes()
+		if len(st) > 1024 {
+			st = st[len(st)-1024:]
+		}
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+
+		duration := time.Since(start)
+
+		// audit log
+		rec := logs.HookResult{
+			Phase:       phase,
+			Path:        hook.Path,
+			ArgsSHA256:  utils.Sha256Bytes([]byte(strings.Join(args, ","))),
+			StdinSHA256: utils.Sha256Bytes([]byte(stateJson)),
+			StdinBytes:  len([]byte(stateJson)),
+			ExitCode:    exitCode,
+			DurationMS:  duration.Milliseconds(),
+			StderrTail:  string(st),
+		}
+
+		_ = logs.RecordHookAuditLog(logs.AuditHookRecord{
+			ContainerId: containerId,
+			Event:       "hook",
+			Hook:        rec,
+			Result:      result,
+		})
+
+		if err != nil {
 			return fmt.Errorf("hook %s[%d] failed: %w", phase, i, err)
 		}
 	}

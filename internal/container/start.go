@@ -2,6 +2,8 @@ package container
 
 import (
 	"droplet/internal/hook"
+	"droplet/internal/logs"
+	"droplet/internal/spec"
 	"droplet/internal/status"
 	"droplet/internal/utils"
 	"fmt"
@@ -43,9 +45,32 @@ type ContainerStart struct {
 //  2. Remove the FIFO after the notification is complete
 //
 // An error is returned if either the write or removal operation fails.
-func (c *ContainerStart) Execute(opt StartOption) error {
+func (c *ContainerStart) Execute(opt StartOption) (err error) {
+	var (
+		spec  spec.Spec
+		event = "start"
+		stage string
+	)
+
+	// audit log
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+		_ = logs.RecordAuditLog(logs.AuditRecord{
+			ContainerId: opt.ContainerId,
+			Event:       event,
+			Spec:        &spec,
+			Stage:       stage,
+			Result:      result,
+			Error:       err,
+		})
+	}()
+
 	// 1. check container status
 	//    if status is running, return error
+	stage = "check_status"
 	containerStatus, err := c.containerStatusManager.GetStatusFromId(opt.ContainerId)
 	if err != nil {
 		return err
@@ -55,46 +80,57 @@ func (c *ContainerStart) Execute(opt StartOption) error {
 	}
 
 	// 2. load config.json
-	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	stage = "load_spec"
+	spec, err = c.specLoader.loadFile(opt.ContainerId)
 	if err != nil {
 		return err
 	}
 
 	// 3. HOOK: startContainer
-	if err := c.containerHookController.RunStartContainerHooks(
+	stage = "hook_startContainer"
+	err = c.containerHookController.RunStartContainerHooks(
 		opt.ContainerId,
 		spec.Hooks.StartContainer,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
 	// 4. write fifo
+	stage = "write_fifo"
 	fifo := utils.FifoPath(opt.ContainerId)
-	if err := c.fifoHandler.writeFifo(fifo); err != nil {
+	err = c.fifoHandler.writeFifo(fifo)
+	if err != nil {
 		return err
 	}
 
 	// 5. remove fifo
-	if err := c.fifoHandler.removeFifo(fifo); err != nil {
+	stage = "remove_fifo"
+	err = c.fifoHandler.removeFifo(fifo)
+	if err != nil {
 		return err
 	}
 
 	// 6. update status file
 	//      status = running
-	if err := c.containerStatusManager.UpdateStatus(
+	stage = "update_state"
+	err = c.containerStatusManager.UpdateStatus(
 		opt.ContainerId,
 		status.RUNNING,
 		-1, // no update
 		-1, // no update
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
 	// 7. HOOK: poststart
-	if err := c.containerHookController.RunPoststartHooks(
+	stage = "hook_poststart"
+	err = c.containerHookController.RunPoststartHooks(
 		opt.ContainerId,
 		spec.Hooks.Poststart,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 

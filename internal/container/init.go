@@ -1,12 +1,13 @@
 package container
 
 import (
+	"droplet/internal/logs"
 	"droplet/internal/spec"
 	"droplet/internal/utils"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -64,35 +65,109 @@ type ContainerInit struct {
 // On success, this function does not return because the process image
 // is replaced. Errors are returned only if the FIFO read fails or
 // syscall.Exec cannot be invoked.
-func (c *ContainerInit) Execute(opt InitOption) error {
+func (c *ContainerInit) Execute(opt InitOption) (err error) {
+	// lock GO thread
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var (
+		spec  spec.Spec
+		event = "init"
+		stage string
+	)
+
+	// audit log
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+		_ = logs.RecordAuditLog(logs.AuditRecord{
+			ContainerId: opt.ContainerId,
+			Event:       event,
+			Stage:       stage,
+			Spec:        &spec,
+			Result:      result,
+			Error:       err,
+		})
+	}()
+
 	fifo := opt.Fifo
 	entrypoint := opt.Entrypoint
 
-	// 1. read fifo for waiting start signal
-	if err := c.fifoReader.readFifo(fifo); err != nil {
+	// 1. load config.json
+	stage = "load_spec"
+	spec, err = c.specSecureLoad(opt.ContainerId)
+	if err != nil {
 		return err
 	}
 
-	// 2. load config.json
-	spec, err := c.specLoader.loadFile(opt.ContainerId)
+	// 2. read fifo for waiting start signal
+	stage = "read_fifo"
+	err = c.fifoReader.readFifo(fifo)
 	if err != nil {
 		return err
 	}
 
 	// 3. prepare container environment
-	if err := c.containerEnvPreparer.prepare(opt.ContainerId, spec); err != nil {
+	stage = "prepare"
+	err = c.containerEnvPreparer.prepare(opt.ContainerId, spec)
+	if err != nil {
 		return err
 	}
 
 	// 4. apply AppArmor Profile Onexec
-	_ = c.appArmorHandler.ApplyAAProfileOnExec(spec.LinuxSpec.AppArmorProfile)
+	stage = "apply_apparmor"
+	err = c.appArmorHandler.ApplyAAProfileOnExec(spec.LinuxSpec.AppArmorProfile)
+	if err != nil {
+		return err
+	}
 
-	// 5. replace process image with the container entrypoint
-	if err := c.syscallHandler.Exec(entrypoint[0], entrypoint, slices.Concat(os.Environ(), spec.Process.Env)); err != nil {
+	// 5. replace process with the container entrypoint
+	stage = "exec_entrypoint"
+	err = c.syscallHandler.Exec(entrypoint[0], entrypoint, spec.Process.Env)
+	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (c *ContainerInit) specSecureLoad(containerId string) (spec.Spec, error) {
+	fileHashPath := utils.ConfigFileHashPath(containerId)
+
+	// 1. load hash string
+	var specFileHash spec.SpecHash
+	if err := utils.ReadJsonFile(
+		fileHashPath,
+		&specFileHash,
+	); err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 2. calculate current config.json file hash
+	currentHash, err := utils.Sha256File(utils.ConfigFilePath(containerId))
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 3. assert
+	if specFileHash.Sha256 != currentHash {
+		return spec.Spec{}, fmt.Errorf("config.json hash validation failed: expect=%s, got=%s", specFileHash.Sha256, currentHash)
+	}
+
+	// 4. load config.json
+	specFile, err := c.specLoader.loadFile(containerId)
+	if err != nil {
+		return spec.Spec{}, err
+	}
+
+	// 5. remove hash file
+	if err := os.Remove(fileHashPath); err != nil {
+		return spec.Spec{}, err
+	}
+
+	return specFile, nil
 }
 
 // containerEnvPreparer defines the behavior for preparing the container
@@ -134,45 +209,91 @@ type rootContainerEnvPreparer struct {
 //
 // If any step fails, the error is returned immediately and the remaining
 // steps are not executed.
-func (p *rootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) error {
+func (p *rootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) (err error) {
+	var (
+		event = "init_prepare"
+		stage string
+	)
+
+	// audit log
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+		_ = logs.RecordAuditLog(logs.AuditRecord{
+			ContainerId: containerId,
+			Event:       event,
+			Stage:       stage,
+			Spec:        &spec,
+			Result:      result,
+			Error:       err,
+		})
+	}()
+
 	// 1. change uid=0(root) inside container
-	if err := p.switchToUserNamespaceRoot(); err != nil {
+	stage = "switch_user"
+	err = p.switchToUserNamespaceRoot()
+	if err != nil {
 		return err
 	}
 	// 2. set hostname
-	if err := p.setHostnameToContainerId(spec.Hostname); err != nil {
+	stage = "set_hostname"
+	err = p.setHostnameToContainerId(spec.Hostname)
+	if err != nil {
 		return err
 	}
 	// 3. set env
-	if err := p.setEnv(spec.Process.Env); err != nil {
+	stage = "set_env"
+	err = p.setEnv(spec.Process.Env)
+	if err != nil {
 		return err
 	}
 	// 4. setup overlay
+	stage = "setup_overlay"
 	if err := p.setupOverlay(spec.Root.Path, spec.Annotations.Image); err != nil {
 		return err
 	}
 	// 5. mount filesystem
-	if err := p.mountFilesystem(containerId, spec.Root.Path, spec.Mounts); err != nil {
+	stage = "mount_filesystem"
+	err = p.mountFilesystem(containerId, spec.Root.Path, spec.Mounts)
+	if err != nil {
 		return err
 	}
 	// 6. mount standard device
-	if err := p.mountStdDevice(spec.Root.Path); err != nil {
+	stage = "mount_stndard_device"
+	err = p.mountStdDevice(spec.Root.Path)
+	if err != nil {
 		return err
 	}
 	// 7. create symbolic link
-	if err := p.createSymbolicLink(spec.Root.Path); err != nil {
+	stage = "create_symlink"
+	err = p.createSymbolicLink(spec.Root.Path)
+	if err != nil {
 		return err
 	}
 	// 8. pivot_root
-	if err := p.pivotRoot(spec.Root.Path); err != nil {
+	stage = "pivot_root"
+	err = p.pivotRoot(spec.Root.Path)
+	if err != nil {
 		return err
 	}
 	// 9. set capability
-	if err := p.setCapability(spec.Process.Capabilities); err != nil {
+	stage = "set_capability"
+	err = p.setCapability(spec.Process.Capabilities)
+	if err != nil {
 		return err
 	}
 	// 10. install seccomp (NO_NEW_PRIVS + filter)
-	if err := p.seccompHandler.InstallDenyFilter(*spec.LinuxSpec.Seccomp); err != nil {
+	stage = "install_seccomp"
+	err = p.seccompHandler.InstallDenyFilter(*spec.LinuxSpec.Seccomp)
+	if err != nil {
+		return err
+	}
+	// 12. change current dir
+	stage = "chdir"
+	err = p.syscallHandler.Chdir(spec.Process.Cwd)
+	if err != nil {
 		return err
 	}
 
@@ -263,40 +384,6 @@ func (p *rootContainerEnvPreparer) setupOverlay(rootfs string, imageAnnotation s
 // and arbitrary host paths. For bind mounts, this method prepares the
 // destination path depending on whether the source is a file or a directory.
 func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs string, mountList []spec.MountObject) error {
-	// mount path validation for protecting path traversal
-	securePath := func(rootfs, dest string) (string, error) {
-		rel := strings.TrimPrefix(dest, "/")
-		clean := filepath.Clean(rel)
-
-		if clean == "." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) || clean == ".." {
-			return "", fmt.Errorf("invalid destination: %q", dest)
-		}
-
-		fullPath := filepath.Join(rootfs, clean)
-		root := filepath.Clean(rootfs) + string(os.PathSeparator)
-		if !strings.HasPrefix(fullPath+string(os.PathSeparator), root) && fullPath != filepath.Clean(rootfs) {
-			return "", fmt.Errorf("destination escapes rootfs: %q -> %q", dest, fullPath)
-		}
-		return fullPath, nil
-	}
-
-	// source mount validation
-	// the following source is denied by default
-	//   /proc, /sys, /dev, /run, /var/run, /boot, /root, /
-	hasDeniedSource := func(source string) bool {
-		p := filepath.Clean(source)
-		if p == "/" {
-			return true
-		}
-		deniedList := []string{"/proc", "/sys", "/dev", "/run", "/var/run", "/boot", "/root"}
-		for _, d := range deniedList {
-			if p == d || strings.HasPrefix(p, d+string(os.PathSeparator)) {
-				return true
-			}
-		}
-		return false
-	}
-
 	// mount file system required for operation. required fs is the following
 	//   /proc, /dev, /dev/pts, /sys, /sys/fs/cgroup, /dev/mqueue, /dev/shm
 	// additionally, mount user-specified host directories
@@ -495,6 +582,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 			mountFlags uintptr
 			mountData  string
 			dataStrTmp []string
+			bindFlag   = false
 		)
 		if mountConfig.Options != nil {
 			for _, option := range mountConfig.Options {
@@ -510,6 +598,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 				case "rw":
 					// ignore
 				case "bind":
+					bindFlag = true
 					mountFlags |= syscall.MS_BIND
 				case "strictatime":
 					mountFlags |= syscall.MS_STRICTATIME
@@ -518,6 +607,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 				case "relatime":
 					mountFlags |= syscall.MS_RELATIME
 				case "rbind":
+					bindFlag = true
 					mountFlags |= syscall.MS_BIND | syscall.MS_REC
 				case "rprivate":
 					// ignore
@@ -530,6 +620,7 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 			mountFlags = uintptr(0)
 		}
 
+		// validate destination path
 		mountPath, err := securePath(rootfs, mountConfig.Destination)
 		if err != nil {
 			return err
@@ -539,7 +630,17 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 		// if the source is a directory, the destination directory is checked for existence and created if it does not exist.
 		// if the source is a file, the parent directory is created and an empty file is created.
 		// this process is only bind mount
-		if mountConfig.Type == "bind" {
+		if bindFlag {
+			// validate source type
+			// if source typ is symlink, then deny
+			isLink, err := isSymlink(mountConfig.Source)
+			if err != nil {
+				return fmt.Errorf("lstat failed: %s: %w", mountConfig.Source, err)
+			}
+			if isLink {
+				return fmt.Errorf("source:%s is symlink", mountConfig.Source)
+			}
+
 			// retrieve source info
 			srcInfo, statErr := p.syscallHandler.Stat(mountConfig.Source)
 			if statErr != nil {
@@ -547,6 +648,10 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 			}
 
 			if srcInfo.IsDir() { // source: directory
+				// reject if any symlink exists under source directory tree
+				if err := rejectSymlinkInDirTreeFd(mountConfig.Source, WalkLimits{MaxDepth: 64, MaxEntries: 200_000}); err != nil {
+					return fmt.Errorf("invalid mount source (symlink in tree): %s: %w", mountConfig.Source, err)
+				}
 				// check if target directory is exists
 				if _, err := p.syscallHandler.Stat(mountPath); p.syscallHandler.IsNotExist(err) {
 					if err := p.syscallHandler.MkdirAll(mountPath, os.ModePerm); err != nil {
@@ -576,22 +681,12 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 		}
 
 		// mount
-		if err := p.syscallHandler.Mount(
+		if err := secureMount(
 			mountConfig.Source,
 			mountPath,
 			mountConfig.Type,
 			mountFlags,
 			mountData,
-		); err != nil {
-			return err
-		}
-
-		if err := p.syscallHandler.Mount(
-			"",
-			mountPath,
-			"",
-			syscall.MS_PRIVATE|syscall.MS_REC,
-			"",
 		); err != nil {
 			return err
 		}

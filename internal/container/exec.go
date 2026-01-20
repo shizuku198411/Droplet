@@ -1,6 +1,7 @@
 package container
 
 import (
+	"droplet/internal/logs"
 	"droplet/internal/status"
 	"droplet/internal/utils"
 	"fmt"
@@ -48,30 +49,61 @@ type ContainerExec struct {
 //  5. If interactive mode is enabled, attach stdio and wait for completion
 //
 // If any step fails, execution stops and the error is returned.
-func (c *ContainerExec) Exec(opt ExecOption) error {
+func (c *ContainerExec) Exec(opt ExecOption) (err error) {
+	var (
+		event = "exec"
+		stage string
+		pid   int
+	)
+
+	// audit log
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "fail"
+		}
+		_ = logs.RecordAuditLog(logs.AuditRecord{
+			ContainerId: opt.ContainerId,
+			Event:       event,
+			Stage:       stage,
+			Command:     &opt.Entrypoint,
+			Pid:         pid,
+			Result:      result,
+			Error:       err,
+		})
+	}()
+
 	// 1. check container status
 	//    if status is not running, return error
-	containerStatus, containerStatusErr := c.containerStatusManager.GetStatusFromId(opt.ContainerId)
-	if containerStatusErr != nil {
-		return containerStatusErr
+	stage = "get_status"
+	containerStatus, err := c.containerStatusManager.GetStatusFromId(opt.ContainerId)
+	if err != nil {
+		return err
 	}
+
+	stage = "check_status"
 	if containerStatus != status.RUNNING {
 		return fmt.Errorf("container: %s not running.", opt.ContainerId)
 	}
 
 	// 2. retrieve pid from state.json
-	containerPid, containerPidErr := c.containerStatusManager.GetPidFromId(opt.ContainerId)
-	if containerPidErr != nil {
-		return containerPidErr
+	stage = "get_pid"
+	containerPid, err := c.containerStatusManager.GetPidFromId(opt.ContainerId)
+	if err != nil {
+		return err
 	}
 
 	// 3. prepare entrypoint with nsenter
 	if opt.Tty {
-		if err := c.executeShim(containerPid, opt); err != nil {
+		stage = "exec_shim"
+		err = c.executeShim(containerPid, opt)
+		if err != nil {
 			return err
 		}
 	} else {
-		if err := c.executeNsenter(containerPid, opt); err != nil {
+		stage = "exec_nsenter"
+		err = c.executeNsenter(containerPid, opt)
+		if err != nil {
 			return err
 		}
 	}
