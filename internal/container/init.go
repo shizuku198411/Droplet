@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -132,12 +133,29 @@ func (c *ContainerInit) Execute(opt InitOption) (err error) {
 		return err
 	}
 	entrypoint[0] = arg0
+	// close all FD except 0,1,2
+	c.closeAllExcept012()
+	// execve
 	err = c.syscallHandler.Exec(arg0, entrypoint, spec.Process.Env)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (c *ContainerInit) closeAllExcept012() {
+	ents, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return
+	}
+	for _, e := range ents {
+		fd, err := strconv.Atoi(e.Name())
+		if err != nil || fd < 3 {
+			continue
+		}
+		_ = syscall.Close(fd)
+	}
 }
 
 func (c *ContainerInit) specSecureLoad(containerId string) (spec.Spec, error) {
