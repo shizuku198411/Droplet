@@ -222,3 +222,63 @@ func TestRejectSymlinkInDirTreeFd_MaxEntries(t *testing.T) {
 	// == assert ==
 	assert.NotNil(t, err)
 }
+
+func TestIsAllowedType_FstypeBind(t *testing.T) {
+	// == arrange ==
+	fstype := "bind"
+	options := []string{"rbind", "rprivate"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == assert ==
+	assert.True(t, result)
+}
+
+func TestIsAllowedType_OptionBind(t *testing.T) {
+	// == arrange ==
+	fstype := ""
+	options := []string{"bind"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == assert ==
+	assert.True(t, result)
+}
+
+func TestIsAllowedType_NotAllowedFstype(t *testing.T) {
+	// == arrange ==
+	fstype := "sysfs"
+	options := []string{"bind"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == assert ==
+	assert.False(t, result)
+}
+
+func TestIsAllowedType_NotAllowedOptions_1(t *testing.T) {
+	// == arrange ==
+	fstype := "bind"
+	options := []string{"rbind", "rprivate", "gid=5"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == asset ==
+	assert.False(t, result)
+}
+
+func TestIsAllowedType_NotAllowedOptions_2(t *testing.T) {
+	// == arrange ==
+	fstype := "bind"
+	options := []string{"rbind"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == asset ==
+	assert.False(t, result)
+}

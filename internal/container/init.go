@@ -600,6 +600,13 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 		if hasDeniedDestination(user_mount.Destination) {
 			return fmt.Errorf("invalid mount destination: %s", user_mount.Destination)
 		}
+		// validate fstype & options
+		// only allowed bind/rbind
+		if !isAllowedType(user_mount.Type, user_mount.Options) {
+			return fmt.Errorf("invalid mount type and options: %s: %s", user_mount.Type, strings.Join(user_mount.Options, ","))
+		}
+		// force options
+		//secureOptions := secureOptions(user_mount.Options)
 		prerequiredMounts = append(prerequiredMounts, spec.MountObject{
 			Destination: user_mount.Destination,
 			Type:        user_mount.Type,
