@@ -32,8 +32,15 @@ func secureMount(source, target, fstype string, flags uintptr, data string) erro
 	if err := syscall.Mount(source, target, fstype, flags, data); err != nil {
 		return err
 	}
+	// force nosuid/nodev/noexec on bind mount
+	if fstype == "bind" || flags&syscall.MS_BIND != 0 {
+		remountFlags := syscall.MS_BIND | syscall.MS_REMOUNT | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_NODEV
+		if err := syscall.Mount("", target, "", uintptr(remountFlags), ""); err != nil {
+			return err
+		}
+	}
 
-	// 2. change mount type
+	// 2. protect mount propagation
 	if err := syscall.Mount("", target, "", syscall.MS_PRIVATE|syscall.MS_REC, ""); err != nil {
 		return err
 	}
@@ -43,15 +50,49 @@ func secureMount(source, target, fstype string, flags uintptr, data string) erro
 // source mount validation
 // the following source is denied by default
 //
-//	/proc, /sys, /dev, /run, /var/run, /boot, /root, /
+//	/proc, /sys, /dev, /run, /var/run, /boot, /root, /, /bin, /usr/bin, /usr/local/bin
 func hasDeniedSource(source string) bool {
 	p := filepath.Clean(source)
 	if p == "/" {
 		return true
 	}
-	deniedList := []string{"/proc", "/sys", "/dev", "/run", "/var/run", "/boot", "/root"}
+	deniedList := []string{"/proc", "/sys", "/dev", "/run", "/var/run", "/boot", "/root", "/bin", "/usr/bin", "/usr/local/bin"}
 	for _, d := range deniedList {
 		if p == d || strings.HasPrefix(p, d+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasDeniedDestination(destination string) bool {
+	p := filepath.Clean(destination)
+	if p == "/" {
+		return true
+	}
+	deniedList := []string{"/proc", "/sys", "/dev", "/run", "/var/run", "/boot"}
+	for _, d := range deniedList {
+		if p == d || strings.HasPrefix(p, d+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func isAllowedType(fstype string, options []string) bool {
+	if fstype == "bind" {
+		if len(options) != 2 {
+			return false
+		} else {
+			for _, o := range options {
+				if o != "rbind" && o != "rprivate" {
+					return false
+				}
+			}
+		}
+		return true
+	} else if fstype == "" {
+		if len(options) == 1 && options[0] == "bind" {
 			return true
 		}
 	}

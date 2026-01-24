@@ -8,10 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/syndtr/gocapability/capability"
+	"golang.org/x/sys/unix"
 )
 
 // NewContainerInit returns a ContainerInit wired with the default
@@ -125,12 +127,35 @@ func (c *ContainerInit) Execute(opt InitOption) (err error) {
 
 	// 5. replace process with the container entrypoint
 	stage = "exec_entrypoint"
-	err = c.syscallHandler.Exec(entrypoint[0], entrypoint, spec.Process.Env)
+	// lookup entrypoint[0]'s abstract path
+	arg0, err := c.lookEntrypointPath(entrypoint[0], spec.Process.Env)
+	if err != nil {
+		return err
+	}
+	entrypoint[0] = arg0
+	// close all FD except 0,1,2
+	c.closeAllExcept012()
+	// execve
+	err = c.syscallHandler.Exec(arg0, entrypoint, spec.Process.Env)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (c *ContainerInit) closeAllExcept012() {
+	ents, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return
+	}
+	for _, e := range ents {
+		fd, err := strconv.Atoi(e.Name())
+		if err != nil || fd < 3 {
+			continue
+		}
+		_ = syscall.Close(fd)
+	}
 }
 
 func (c *ContainerInit) specSecureLoad(containerId string) (spec.Spec, error) {
@@ -168,6 +193,35 @@ func (c *ContainerInit) specSecureLoad(containerId string) (spec.Spec, error) {
 	}
 
 	return specFile, nil
+}
+
+func (c *ContainerInit) lookEntrypointPath(arg0 string, env []string) (string, error) {
+	// if arg0 has "/", it already abstract path
+	if strings.Contains(arg0, "/") {
+		return arg0, nil
+	}
+	// set PATH value
+	var pathVal string
+	for _, e := range env {
+		if strings.HasPrefix(e, "PATH=") {
+			pathVal = strings.TrimPrefix(e, "PATH=")
+			break
+		}
+	}
+	if pathVal == "" {
+		pathVal = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	}
+
+	for _, dir := range strings.Split(pathVal, ":") {
+		if dir == "" {
+			dir = "."
+		}
+		cand := filepath.Join(dir, arg0)
+		if err := unix.Access(cand, unix.X_OK); err == nil {
+			return cand, nil
+		}
+	}
+	return "", fmt.Errorf("%s: not found in PATH", arg0)
 }
 
 // containerEnvPreparer defines the behavior for preparing the container
@@ -210,88 +264,56 @@ type rootContainerEnvPreparer struct {
 // If any step fails, the error is returned immediately and the remaining
 // steps are not executed.
 func (p *rootContainerEnvPreparer) prepare(containerId string, spec spec.Spec) (err error) {
-	var (
-		event = "init_prepare"
-		stage string
-	)
-
-	// audit log
-	defer func() {
-		result := "success"
-		if err != nil {
-			result = "fail"
-		}
-		_ = logs.RecordAuditLog(logs.AuditRecord{
-			ContainerId: containerId,
-			Event:       event,
-			Stage:       stage,
-			Spec:        &spec,
-			Result:      result,
-			Error:       err,
-		})
-	}()
-
 	// 1. change uid=0(root) inside container
-	stage = "switch_user"
 	err = p.switchToUserNamespaceRoot()
 	if err != nil {
 		return err
 	}
 	// 2. set hostname
-	stage = "set_hostname"
 	err = p.setHostnameToContainerId(spec.Hostname)
 	if err != nil {
 		return err
 	}
 	// 3. set env
-	stage = "set_env"
 	err = p.setEnv(spec.Process.Env)
 	if err != nil {
 		return err
 	}
 	// 4. setup overlay
-	stage = "setup_overlay"
 	if err := p.setupOverlay(spec.Root.Path, spec.Annotations.Image); err != nil {
 		return err
 	}
 	// 5. mount filesystem
-	stage = "mount_filesystem"
 	err = p.mountFilesystem(containerId, spec.Root.Path, spec.Mounts)
 	if err != nil {
 		return err
 	}
 	// 6. mount standard device
-	stage = "mount_stndard_device"
 	err = p.mountStdDevice(spec.Root.Path)
 	if err != nil {
 		return err
 	}
 	// 7. create symbolic link
-	stage = "create_symlink"
 	err = p.createSymbolicLink(spec.Root.Path)
 	if err != nil {
 		return err
 	}
 	// 8. pivot_root
-	stage = "pivot_root"
 	err = p.pivotRoot(spec.Root.Path)
 	if err != nil {
 		return err
 	}
 	// 9. set capability
-	stage = "set_capability"
 	err = p.setCapability(spec.Process.Capabilities)
 	if err != nil {
 		return err
 	}
 	// 10. install seccomp (NO_NEW_PRIVS + filter)
-	stage = "install_seccomp"
 	err = p.seccompHandler.InstallDenyFilter(*spec.LinuxSpec.Seccomp)
 	if err != nil {
 		return err
 	}
 	// 12. change current dir
-	stage = "chdir"
 	err = p.syscallHandler.Chdir(spec.Process.Cwd)
 	if err != nil {
 		return err
@@ -334,7 +356,7 @@ func (p *rootContainerEnvPreparer) setHostnameToContainerId(hostname string) err
 
 func (p *rootContainerEnvPreparer) setEnv(envlist []string) error {
 	for _, e := range envlist {
-		envParts := strings.Split(e, "=")
+		envParts := strings.SplitN(e, "=", 2)
 		k, v := envParts[0], envParts[1]
 		if err := p.syscallHandler.Setenv(k, v); err != nil {
 			return err
@@ -371,6 +393,11 @@ func (p *rootContainerEnvPreparer) setupOverlay(rootfs string, imageAnnotation s
 
 	// overlay
 	if err := p.syscallHandler.Mount(mountSource, mountTarget, mountFstype, mountFlags, mountData); err != nil {
+		return err
+	}
+
+	// re-mount for mount propagation
+	if err := p.syscallHandler.Mount("", mountTarget, "", syscall.MS_PRIVATE|syscall.MS_REC, ""); err != nil {
 		return err
 	}
 
@@ -565,10 +592,21 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 
 	// user mounts
 	for _, user_mount := range mountList {
-		// validate
+		// validate source
 		if hasDeniedSource(user_mount.Source) {
 			return fmt.Errorf("invalid mount source: %s", user_mount.Source)
 		}
+		// validate destination
+		if hasDeniedDestination(user_mount.Destination) {
+			return fmt.Errorf("invalid mount destination: %s", user_mount.Destination)
+		}
+		// validate fstype & options
+		// only allowed bind/rbind
+		if !isAllowedType(user_mount.Type, user_mount.Options) {
+			return fmt.Errorf("invalid mount type and options: %s: %s", user_mount.Type, strings.Join(user_mount.Options, ","))
+		}
+		// force options
+		//secureOptions := secureOptions(user_mount.Options)
 		prerequiredMounts = append(prerequiredMounts, spec.MountObject{
 			Destination: user_mount.Destination,
 			Type:        user_mount.Type,

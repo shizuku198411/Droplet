@@ -13,6 +13,7 @@ type AuditRecord struct {
 	Stage       string
 	Pid         int
 	Command     *[]string
+	Signals     *[]string
 	Spec        *spec.Spec
 	Result      string
 	Error       error
@@ -43,6 +44,10 @@ func RecordAuditLog(auditRecord AuditRecord) error {
 
 	if auditRecord.Command != nil {
 		rec.ExecCommand = *auditRecord.Command
+	}
+
+	if auditRecord.Signals != nil {
+		rec.Signals = *auditRecord.Signals
 	}
 
 	if auditRecord.Spec != nil {

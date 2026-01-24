@@ -23,7 +23,7 @@ func runKill(ctx *cli.Context) error {
 	if ctx.NArg() == 2 {
 		signal = ctx.Args().Get(1)
 	} else {
-		signal = "KILL"
+		signal = "TERM"
 	}
 
 	containerKill := container.NewContainerKill()

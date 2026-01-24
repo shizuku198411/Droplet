@@ -15,8 +15,9 @@ type Record struct {
 
 	ExecCommand []string `json:"exec_command,omitempty"`
 
-	Oci *OciInfo `json:"oci,omitempty"`
-	Pid int      `json:"pid,omitempty"`
+	Oci     *OciInfo `json:"oci,omitempty"`
+	Pid     int      `json:"pid,omitempty"`
+	Signals []string `json:"signals,omitempty"`
 
 	Namespaces   map[string]bool `json:"namespaces,omitempty"`
 	Capabilities *CapsInfo       `json:"capabilities,omitempty"`

@@ -33,7 +33,7 @@ func TestSecurePath_IncludeRelativePathError(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestHasDeniedSource_Success(t *testing.T) {
+func TestHasDeniedSource_NoDeniedSource(t *testing.T) {
 	// == arrange ==
 	source := "/home/user/path"
 
@@ -44,7 +44,7 @@ func TestHasDeniedSource_Success(t *testing.T) {
 	assert.False(t, result)
 }
 
-func TestHasDeniedSource_IncludeDeniedPath(t *testing.T) {
+func TestHasDeniedSource_HasDeniedSource(t *testing.T) {
 	// == arrange ==
 	source_1 := "/root/path"
 	source_2 := "/proc/self"
@@ -71,6 +71,43 @@ func TestHasDeniedSource_IncludeDeniedPath(t *testing.T) {
 	assert.True(t, res_5)
 	assert.True(t, res_6)
 	assert.True(t, res_7)
+}
+
+func TestHasDeniedDestination_NoDeniedDest(t *testing.T) {
+	// == arrange ==
+	dest := "/home/user/path"
+
+	// == act ==
+	result := hasDeniedDestination(dest)
+
+	// == assert ==
+	assert.False(t, result)
+}
+
+func TestHasDeniedSource_HasDeniedDest(t *testing.T) {
+	// == arrange ==
+	source_1 := "/proc/self"
+	source_2 := "/sys/fs"
+	source_3 := "/dev/pts"
+	source_4 := "/run/user"
+	source_5 := "/var/run/user"
+	source_6 := "/boot/firmware"
+
+	// == act ==
+	res_1 := hasDeniedDestination(source_1)
+	res_2 := hasDeniedDestination(source_2)
+	res_3 := hasDeniedDestination(source_3)
+	res_4 := hasDeniedDestination(source_4)
+	res_5 := hasDeniedDestination(source_5)
+	res_6 := hasDeniedDestination(source_6)
+
+	// == assert ==
+	assert.True(t, res_1)
+	assert.True(t, res_2)
+	assert.True(t, res_3)
+	assert.True(t, res_4)
+	assert.True(t, res_5)
+	assert.True(t, res_6)
 }
 
 func TestIsSymlink_NotSymlink(t *testing.T) {
@@ -184,4 +221,64 @@ func TestRejectSymlinkInDirTreeFd_MaxEntries(t *testing.T) {
 
 	// == assert ==
 	assert.NotNil(t, err)
+}
+
+func TestIsAllowedType_FstypeBind(t *testing.T) {
+	// == arrange ==
+	fstype := "bind"
+	options := []string{"rbind", "rprivate"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == assert ==
+	assert.True(t, result)
+}
+
+func TestIsAllowedType_OptionBind(t *testing.T) {
+	// == arrange ==
+	fstype := ""
+	options := []string{"bind"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == assert ==
+	assert.True(t, result)
+}
+
+func TestIsAllowedType_NotAllowedFstype(t *testing.T) {
+	// == arrange ==
+	fstype := "sysfs"
+	options := []string{"bind"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == assert ==
+	assert.False(t, result)
+}
+
+func TestIsAllowedType_NotAllowedOptions_1(t *testing.T) {
+	// == arrange ==
+	fstype := "bind"
+	options := []string{"rbind", "rprivate", "gid=5"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == asset ==
+	assert.False(t, result)
+}
+
+func TestIsAllowedType_NotAllowedOptions_2(t *testing.T) {
+	// == arrange ==
+	fstype := "bind"
+	options := []string{"rbind"}
+
+	// == act ==
+	result := isAllowedType(fstype, options)
+
+	// == asset ==
+	assert.False(t, result)
 }
