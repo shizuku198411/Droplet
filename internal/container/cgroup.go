@@ -47,6 +47,11 @@ func (c *containerCgroupController) prepare(containerId string, spec spec.Spec, 
 		return err
 	}
 
+	// 3. set pids max
+	if err := c.setPidsLimit(containerId, 512); err != nil {
+		return err
+	}
+
 	// 3. set pid to cgroup.procs
 	if err := c.setProcessToCgroup(containerId, pid); err != nil {
 		return err
@@ -79,6 +84,17 @@ func (c *containerCgroupController) setCpuLimit(containerId string, cpuObject sp
 	cpuLimit := fmt.Sprintf("%d %d\n", cpuObject.Quota, cpuObject.Period)
 
 	if err := c.syscallHandler.WriteFile(cpuPath, []byte(cpuLimit), 0644); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *containerCgroupController) setPidsLimit(containerId string, pids int) error {
+	cgroupPath := utils.CgroupPath(containerId)
+	pidsMaxPath := filepath.Join(cgroupPath, "pids.max")
+	pidsMax := fmt.Sprintf("%d\n", pids)
+
+	if err := c.syscallHandler.WriteFile(pidsMaxPath, []byte(pidsMax), 0644); err != nil {
 		return err
 	}
 	return nil

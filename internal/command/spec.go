@@ -96,31 +96,59 @@ func commandSpec() *cli.Command {
 			// hook
 			&cli.StringSliceFlag{
 				Name:  "hook-prestart",
-				Usage: "prestart hook (format: path[,arg1,arg2,...])",
+				Usage: "(DEPRECATED) prestart hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
+				Name:  "hook-prestart-env",
+				Usage: "(DEPRECATED) prestart hook env (format: KEY=VALUE)",
 			},
 			&cli.StringSliceFlag{
 				Name:  "hook-create-runtime",
 				Usage: "createRuntime hook (format: path[,arg1,arg2,...])",
 			},
 			&cli.StringSliceFlag{
+				Name:  "hook-create-runtime-env",
+				Usage: "createRuntime hook env (format: KEY=VALUE)",
+			},
+			&cli.StringSliceFlag{
 				Name:  "hook-create-container",
 				Usage: "createContainer hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
+				Name:  "hook-create-container-env",
+				Usage: "createContainer hook env (format: KEY=VALUE)",
 			},
 			&cli.StringSliceFlag{
 				Name:  "hook-start-container",
 				Usage: "startContainer hook (format: path[,arg1,arg2,...])",
 			},
 			&cli.StringSliceFlag{
+				Name:  "hook-start-container-env",
+				Usage: "startContainer hook env (format: KEY=VALUE)",
+			},
+			&cli.StringSliceFlag{
 				Name:  "hook-poststart",
 				Usage: "poststart hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
+				Name:  "hook-poststart-env",
+				Usage: "poststart hook env (format: KEY=VALUE)",
 			},
 			&cli.StringSliceFlag{
 				Name:  "hook-stop-container",
 				Usage: "stopContainer hook (format: path[,arg1,arg2,...])",
 			},
 			&cli.StringSliceFlag{
+				Name:  "hook-stop-container-env",
+				Usage: "stopContainer hook env (format: KEY=VALUE)",
+			},
+			&cli.StringSliceFlag{
 				Name:  "hook-poststop",
 				Usage: "poststop hook (format: path[,arg1,arg2,...])",
+			},
+			&cli.StringSliceFlag{
+				Name:  "hook-poststop-env",
+				Usage: "poststop hook env (format: KEY=VALUE)",
 			},
 
 			&cli.StringFlag{
@@ -200,31 +228,31 @@ func createConfigOptions(ctx *cli.Context) (spec.ConfigOptions, error) {
 
 	// hook
 	// prestart
-	prestartHook, err := parseHookFlag(ctx.StringSlice("hook-prestart"))
+	prestartHook, err := parseHookFlag(ctx.StringSlice("hook-prestart"), ctx.StringSlice("hook-prestart-env"))
 	if err != nil {
 		return spec.ConfigOptions{}, err
 	}
-	createRuntimeHook, err := parseHookFlag(ctx.StringSlice("hook-create-runtime"))
+	createRuntimeHook, err := parseHookFlag(ctx.StringSlice("hook-create-runtime"), ctx.StringSlice("hook-create-runtime-env"))
 	if err != nil {
 		return spec.ConfigOptions{}, err
 	}
-	createContainerHook, err := parseHookFlag(ctx.StringSlice("hook-create-container"))
+	createContainerHook, err := parseHookFlag(ctx.StringSlice("hook-create-container"), ctx.StringSlice("hook-create-container-env"))
 	if err != nil {
 		return spec.ConfigOptions{}, err
 	}
-	startContainerHook, err := parseHookFlag(ctx.StringSlice("hook-start-container"))
+	startContainerHook, err := parseHookFlag(ctx.StringSlice("hook-start-container"), ctx.StringSlice("hook-start-container-env"))
 	if err != nil {
 		return spec.ConfigOptions{}, err
 	}
-	poststartHook, err := parseHookFlag(ctx.StringSlice("hook-poststart"))
+	poststartHook, err := parseHookFlag(ctx.StringSlice("hook-poststart"), ctx.StringSlice("hook-poststart-env"))
 	if err != nil {
 		return spec.ConfigOptions{}, err
 	}
-	stopContainerHook, err := parseHookFlag(ctx.StringSlice("hook-stop-container"))
+	stopContainerHook, err := parseHookFlag(ctx.StringSlice("hook-stop-container"), ctx.StringSlice("hook-stop-container-env"))
 	if err != nil {
 		return spec.ConfigOptions{}, err
 	}
-	poststopHook, err := parseHookFlag(ctx.StringSlice("hook-poststop"))
+	poststopHook, err := parseHookFlag(ctx.StringSlice("hook-poststop"), ctx.StringSlice("hook-poststop-env"))
 	if err != nil {
 		return spec.ConfigOptions{}, err
 	}
@@ -318,10 +346,11 @@ func parseCommandFlag(s string) ([]string, error) {
 	return args, nil
 }
 
-func parseHookFlag(value []string) ([]spec.HookOption, error) {
+func parseHookFlag(command []string, env []string) ([]spec.HookOption, error) {
 	var hooks []spec.HookOption
 
-	for _, v := range value {
+	// command
+	for _, v := range command {
 		if v == "" {
 			continue
 		}
@@ -336,6 +365,17 @@ func parseHookFlag(value []string) ([]spec.HookOption, error) {
 			h.Args = parts[1:]
 		}
 		hooks = append(hooks, h)
+	}
+	// env
+	for i, v := range env {
+		if v == "" {
+			continue
+		}
+		parts := strings.SplitN(v, "=", 2)
+		if len(parts) != 2 {
+			return []spec.HookOption{}, fmt.Errorf("invalid hook env: %q", v)
+		}
+		hooks[i].Env = append(hooks[i].Env, v)
 	}
 	return hooks, nil
 }

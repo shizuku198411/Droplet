@@ -145,7 +145,7 @@ func (c *HookController) runHookList(containerId string, phase string, hookList 
 		// prepare hook environment
 		var stderr bytes.Buffer
 		cmd := c.commandFactory.Command(hook.Path, args...)
-		cmd.SetEnv(append(os.Environ(), hook.Env...))
+		cmd.SetEnv(hook.Env)
 		cmd.SetStdin(bytes.NewReader([]byte(stateJson)))
 		cmd.SetStdout(os.Stdout)
 		cmd.SetStderr(&stderr)
@@ -249,7 +249,7 @@ func (c *HookController) runHookListWithNsenter(containerId string, phase string
 
 		var stderr bytes.Buffer
 		cmd := c.commandFactory.Command("/usr/bin/nsenter", nsenterArgs...)
-		cmd.SetEnv(append(os.Environ(), hook.Env...))
+		cmd.SetEnv(hook.Env)
 		cmd.SetStdin(bytes.NewReader([]byte(stateJson)))
 		cmd.SetStdout(os.Stdout)
 		cmd.SetStderr(&stderr)

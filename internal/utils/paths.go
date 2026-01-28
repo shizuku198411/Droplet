@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	AuditLog      = "/etc/raind/log/audit.log"
+	AuditLog      = "/etc/raind/log/droplet_audit.log"
 	cgroupRootDir = "/sys/fs/cgroup/raind"
 )
 

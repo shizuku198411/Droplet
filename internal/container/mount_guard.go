@@ -56,7 +56,7 @@ func hasDeniedSource(source string) bool {
 	if p == "/" {
 		return true
 	}
-	deniedList := []string{"/proc", "/sys", "/dev", "/run", "/var/run", "/boot", "/root", "/bin", "/usr/bin", "/usr/local/bin"}
+	deniedList := []string{"/proc", "/sys", "/dev", "/run", "/var/run", "/boot", "/root", "/bin", "/usr/bin", "/usr/local/bin", "/etc/raind"}
 	for _, d := range deniedList {
 		if p == d || strings.HasPrefix(p, d+string(os.PathSeparator)) {
 			return true

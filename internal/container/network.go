@@ -67,19 +67,19 @@ func (c *containerNetworkController) createVethPair(containerId string, pid int,
 	pidStr := fmt.Sprint(pid)
 
 	// 1. create veth
-	createVeth := c.commandFactory.Command("ip", "link", "add", "name", "raind"+pidStr, "type", "veth", "peer", "name", networkConfig.HostInterface, "netns", pidStr)
+	createVeth := c.commandFactory.Command("ip", "link", "add", "name", networkConfig.Interface.Name, "type", "veth", "peer", "name", networkConfig.HostInterface, "netns", pidStr)
 	if err := createVeth.Run(); err != nil {
 		return err
 	}
 
 	// 2. attach veth to bridge
-	attacheVeth := c.commandFactory.Command("ip", "link", "set", "raind"+pidStr, "master", networkConfig.BridgeInterface)
+	attacheVeth := c.commandFactory.Command("ip", "link", "set", networkConfig.Interface.Name, "master", networkConfig.BridgeInterface)
 	if err := attacheVeth.Run(); err != nil {
 		return err
 	}
 
 	// 3. up veth
-	upVeth := c.commandFactory.Command("ip", "link", "set", "raind"+pidStr, "up")
+	upVeth := c.commandFactory.Command("ip", "link", "set", networkConfig.Interface.Name, "up")
 	if err := upVeth.Run(); err != nil {
 		return err
 	}
@@ -105,19 +105,19 @@ func (c *containerNetworkController) setupContainerNetns(pid int, networkConfig 
 	}
 
 	// 2. rename veth
-	renameVeth := c.commandFactory.Command("nsenter", "-t", pidStr, "-n", "ip", "link", "set", networkConfig.HostInterface, "name", networkConfig.Interface.Name)
+	renameVeth := c.commandFactory.Command("nsenter", "-t", pidStr, "-n", "ip", "link", "set", networkConfig.HostInterface, "name", "eth0")
 	if err := renameVeth.Run(); err != nil {
 		return err
 	}
 
 	// 3. assign address
-	assignAddr := c.commandFactory.Command("nsenter", "-t", pidStr, "-n", "ip", "addr", "add", networkConfig.Interface.IPv4.Address, "dev", networkConfig.Interface.Name)
+	assignAddr := c.commandFactory.Command("nsenter", "-t", pidStr, "-n", "ip", "addr", "add", networkConfig.Interface.IPv4.Address, "dev", "eth0")
 	if err := assignAddr.Run(); err != nil {
 		return err
 	}
 
 	// 4. up veth
-	upVeth := c.commandFactory.Command("nsenter", "-t", pidStr, "-n", "ip", "link", "set", networkConfig.Interface.Name, "up")
+	upVeth := c.commandFactory.Command("nsenter", "-t", pidStr, "-n", "ip", "link", "set", "eth0", "up")
 	if err := upVeth.Run(); err != nil {
 		return err
 	}
