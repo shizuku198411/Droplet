@@ -687,9 +687,9 @@ func (p *rootContainerEnvPreparer) mountFilesystem(containerId string, rootfs st
 
 			if srcInfo.IsDir() { // source: directory
 				// reject if any symlink exists under source directory tree
-				if err := rejectSymlinkInDirTreeFd(mountConfig.Source, WalkLimits{MaxDepth: 64, MaxEntries: 200_000}); err != nil {
-					return fmt.Errorf("invalid mount source (symlink in tree): %s: %w", mountConfig.Source, err)
-				}
+				//if err := rejectSymlinkInDirTreeFd(mountConfig.Source, WalkLimits{MaxDepth: 64, MaxEntries: 200_000}); err != nil {
+				//	return fmt.Errorf("invalid mount source (symlink in tree): %s: %w", mountConfig.Source, err)
+				//}
 				// check if target directory is exists
 				if _, err := p.syscallHandler.Stat(mountPath); p.syscallHandler.IsNotExist(err) {
 					if err := p.syscallHandler.MkdirAll(mountPath, os.ModePerm); err != nil {
