@@ -136,8 +136,8 @@ func buildLinuxSpec(opts ConfigOptions) LinuxSpecObject {
 
 	var linuxSpec = LinuxSpecObject{
 		Resources: ResourceObject{
-			Memory: MemoryObject{ // memory limit: 512MiB
-				Limit: 536870912,
+			Memory: MemoryObject{ // memory limit: 1024MiB
+				Limit: 1073741824,
 			},
 			Cpu: CpuObject{ // cpu limit: 80%
 				Period: 100000,
